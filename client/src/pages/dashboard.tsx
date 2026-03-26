@@ -5,6 +5,7 @@ import { BandwidthChart } from "@/components/bandwidth-chart";
 import { ConnectionsTable } from "@/components/connections-table";
 import { AlertsPanel } from "@/components/alerts-panel";
 import { ProtocolSplit } from "@/components/protocol-split";
+import { DevicesPanel } from "@/components/devices-panel";
 import { useWebSocket } from "@/lib/useWebSocket";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { Badge } from "@/components/ui/badge";
@@ -107,8 +108,13 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Connections table */}
-      <ConnectionsTable connections={connections} />
+      {/* Devices & Connections row */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <div className="lg:col-span-2">
+          <ConnectionsTable connections={connections} />
+        </div>
+        <DevicesPanel />
+      </div>
     </div>
   );
 }

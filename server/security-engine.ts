@@ -123,6 +123,14 @@ setInterval(() => {
 // =====================================================================
 
 /**
+ * Check if an IP is trusted (whitelisted by the user).
+ */
+function isTrustedIp(ip: string): boolean {
+  const device = storage.getKnownDeviceByIp(ip);
+  return device?.trusted === 1;
+}
+
+/**
  * Analyze a batch of new connections for security threats.
  * Called every time the monitor pushes connections.
  */
@@ -133,8 +141,11 @@ export function analyzeConnections(
   const now = Date.now();
 
   for (const conn of conns) {
-    // --- 1. New device detection ---
+    // --- 1. New device detection (always runs, even for trusted — just registers) ---
     checkNewDevice(conn, broadcast);
+
+    // Skip all security checks for trusted (whitelisted) IPs
+    if (isTrustedIp(conn.remoteAddr)) continue;
 
     // --- 2. Suspicious port usage ---
     checkSuspiciousPort(conn, broadcast);
@@ -198,6 +209,7 @@ function checkNewDevice(conn: Connection, broadcast: (data: any) => void) {
     trusted: 0,
   });
 
+  // Don't alert for already-trusted IPs (shouldn't happen for brand new, but be safe)
   if (shouldAlert(`new_device_${ip}`, 300_000)) {
     emitAlert({
       timestamp: Date.now(),
