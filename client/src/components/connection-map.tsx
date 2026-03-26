@@ -1,41 +1,56 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Globe, MapPin } from "lucide-react";
+import { Globe } from "lucide-react";
+import * as topojson from "topojson-client";
+import worldData from "@/data/world-110m.json";
 import type { KnownDevice } from "@shared/schema";
 
-/**
- * Equirectangular projection: convert lat/lon to SVG x/y
- * Map is 800x400, centered at 0,0
- */
+// --- Projection ---
+
+const MAP_W = 960;
+const MAP_H = 500;
+
+/** Equirectangular projection: lon/lat → SVG x/y */
 function project(lat: number, lon: number): [number, number] {
-  const x = ((lon + 180) / 360) * 800;
-  const y = ((90 - lat) / 180) * 400;
+  const x = ((lon + 180) / 360) * MAP_W;
+  const y = ((90 - lat) / 180) * MAP_H;
   return [x, y];
 }
 
-/** Simplified world map outline paths (major continents) */
-const WORLD_PATHS = [
-  // North America
-  "M 60,80 L 80,60 120,55 160,65 175,90 180,120 170,140 155,150 140,155 120,160 100,165 80,170 55,165 40,150 30,130 35,110 45,90 Z",
-  // South America
-  "M 120,195 L 140,185 160,190 170,210 175,240 170,270 160,300 145,320 130,330 120,320 110,295 105,270 108,240 112,215 Z",
-  // Europe
-  "M 350,55 L 370,50 400,55 420,60 430,70 425,90 410,100 390,105 370,100 355,90 345,75 Z",
-  // Africa
-  "M 350,130 L 380,120 410,125 430,140 440,170 435,200 425,240 415,270 400,280 380,285 360,275 345,255 340,230 338,200 340,170 345,145 Z",
-  // Asia
-  "M 430,40 L 470,35 520,30 570,35 620,40 660,50 680,70 690,90 685,110 670,130 650,140 620,145 580,140 550,130 520,120 490,110 460,100 440,90 435,70 Z",
-  // Southeast Asia / Indonesia
-  "M 580,160 L 610,155 640,160 660,170 670,180 660,190 630,195 600,190 585,180 Z",
-  // Australia
-  "M 620,250 L 660,240 700,245 720,260 725,280 715,300 690,310 660,305 640,290 625,270 Z",
-];
+/**
+ * Convert GeoJSON coordinates ring to SVG path.
+ * Handles both Polygon and MultiPolygon geometry types.
+ */
+function geoToPath(geometry: any): string {
+  const paths: string[] = [];
 
-/** Home location marker (center of US for default) */
-const HOME_LAT = 39.8;
-const HOME_LON = -98.5;
+  function ringToPath(ring: number[][]) {
+    return ring
+      .map((coord, i) => {
+        const [x, y] = project(coord[1], coord[0]);
+        return `${i === 0 ? "M" : "L"}${x.toFixed(1)},${y.toFixed(1)}`;
+      })
+      .join("") + "Z";
+  }
+
+  if (geometry.type === "Polygon") {
+    for (const ring of geometry.coordinates) {
+      paths.push(ringToPath(ring));
+    }
+  } else if (geometry.type === "MultiPolygon") {
+    for (const polygon of geometry.coordinates) {
+      for (const ring of polygon) {
+        paths.push(ringToPath(ring));
+      }
+    }
+  }
+
+  return paths.join(" ");
+}
+
+// --- Colors ---
 
 function threatColor(level: string | null): string {
   switch (level) {
@@ -45,9 +60,16 @@ function threatColor(level: string | null): string {
   }
 }
 
-function trustColor(trusted: number): string {
-  return trusted ? "#34d399" : "#94a3b8";
+function dotColor(device: KnownDevice): string {
+  if (device.threatLevel === "malicious" || device.threatLevel === "suspicious") {
+    return threatColor(device.threatLevel);
+  }
+  return device.trusted ? "#34d399" : "#94a3b8";
 }
+
+/** Default home location (center of US) */
+const HOME_LAT = 39.8;
+const HOME_LON = -98.5;
 
 export function ConnectionMap() {
   const svgRef = useRef<SVGSVGElement>(null);
@@ -59,19 +81,33 @@ export function ConnectionMap() {
     refetchInterval: 15_000,
   });
 
+  // Convert TopoJSON → GeoJSON country features (memoized)
+  const countries = useMemo(() => {
+    try {
+      const topo = worldData as any;
+      const geo = topojson.feature(topo, topo.objects.countries) as any;
+      return geo.features || [];
+    } catch {
+      return [];
+    }
+  }, []);
+
   // Only show devices that have geo data
-  const geoDevices = devices.filter((d) => d.lat && d.lon);
+  const geoDevices = devices.filter((d) => d.lat != null && d.lon != null && d.lat !== 0 && d.lon !== 0);
   const [homeX, homeY] = project(HOME_LAT, HOME_LON);
 
   const handleMouseMove = (e: React.MouseEvent) => {
     const rect = svgRef.current?.getBoundingClientRect();
     if (rect) {
-      setMousePos({ x: e.clientX - rect.left, y: e.clientY - rect.top });
+      setMousePos({
+        x: e.clientX - rect.left,
+        y: e.clientY - rect.top,
+      });
     }
   };
 
-  const countryCount = new Set(geoDevices.map(d => d.country).filter(Boolean)).size;
-  const maliciousCount = geoDevices.filter(d => d.threatLevel === "malicious").length;
+  const countryCount = new Set(geoDevices.map((d) => d.country).filter(Boolean)).size;
+  const maliciousCount = geoDevices.filter((d) => d.threatLevel === "malicious").length;
 
   return (
     <Card className="border-card-border">
@@ -109,83 +145,97 @@ export function ConnectionMap() {
         <div className="relative rounded-lg overflow-hidden bg-[hsl(215,30%,8%)] border border-border/30">
           <svg
             ref={svgRef}
-            viewBox="0 0 800 400"
+            viewBox={`0 0 ${MAP_W} ${MAP_H}`}
             className="w-full h-auto"
             onMouseMove={handleMouseMove}
+            style={{ minHeight: 200 }}
           >
-            {/* Grid lines */}
-            {[0, 1, 2, 3, 4].map((i) => (
-              <line
-                key={`h${i}`}
-                x1="0" y1={i * 100}
-                x2="800" y2={i * 100}
-                stroke="hsl(215,20%,15%)" strokeWidth="0.5"
-              />
-            ))}
-            {[0, 1, 2, 3, 4, 5, 6, 7].map((i) => (
-              <line
-                key={`v${i}`}
-                x1={i * 100} y1="0"
-                x2={i * 100} y2="400"
-                stroke="hsl(215,20%,15%)" strokeWidth="0.5"
-              />
-            ))}
+            {/* Ocean background */}
+            <rect width={MAP_W} height={MAP_H} fill="hsl(215,30%,8%)" />
 
-            {/* Continent outlines */}
-            {WORLD_PATHS.map((d, i) => (
-              <path
-                key={i}
-                d={d}
-                fill="hsl(215,20%,14%)"
-                stroke="hsl(215,20%,22%)"
-                strokeWidth="0.8"
-              />
-            ))}
+            {/* Graticule (grid lines) */}
+            {Array.from({ length: 7 }, (_, i) => (i - 3) * 30).map((lat) => {
+              const y = ((90 - lat) / 180) * MAP_H;
+              return (
+                <line
+                  key={`lat${lat}`}
+                  x1={0} y1={y} x2={MAP_W} y2={y}
+                  stroke="hsl(215,15%,13%)" strokeWidth="0.3"
+                />
+              );
+            })}
+            {Array.from({ length: 13 }, (_, i) => (i - 6) * 30).map((lon) => {
+              const x = ((lon + 180) / 360) * MAP_W;
+              return (
+                <line
+                  key={`lon${lon}`}
+                  x1={x} y1={0} x2={x} y2={MAP_H}
+                  stroke="hsl(215,15%,13%)" strokeWidth="0.3"
+                />
+              );
+            })}
+
+            {/* Country outlines */}
+            {countries.map((feature: any, i: number) => {
+              const d = geoToPath(feature.geometry);
+              if (!d) return null;
+              return (
+                <path
+                  key={i}
+                  d={d}
+                  fill="hsl(215,18%,15%)"
+                  stroke="hsl(215,15%,25%)"
+                  strokeWidth="0.4"
+                />
+              );
+            })}
 
             {/* Connection lines from home to each device */}
             {geoDevices.map((device) => {
               const [dx, dy] = project(device.lat!, device.lon!);
-              const color = device.threatLevel === "malicious" || device.threatLevel === "suspicious"
-                ? threatColor(device.threatLevel)
-                : trustColor(device.trusted ?? 0);
+              const color = dotColor(device);
+
+              // Curved line (quadratic bezier for visual appeal)
+              const mx = (homeX + dx) / 2;
+              const my = Math.min(homeY, dy) - 30; // arc upward
+
               return (
-                <line
+                <path
                   key={`line-${device.id}`}
-                  x1={homeX} y1={homeY}
-                  x2={dx} y2={dy}
+                  d={`M${homeX},${homeY} Q${mx},${my} ${dx},${dy}`}
+                  fill="none"
                   stroke={color}
-                  strokeWidth="0.6"
-                  strokeOpacity="0.35"
-                  strokeDasharray={device.trusted ? "none" : "3,2"}
+                  strokeWidth="0.7"
+                  strokeOpacity="0.3"
+                  strokeDasharray={device.trusted ? "none" : "4,3"}
                 />
               );
             })}
 
             {/* Home marker */}
-            <circle cx={homeX} cy={homeY} r="4" fill="#22d3ee" fillOpacity="0.9" />
-            <circle cx={homeX} cy={homeY} r="7" fill="none" stroke="#22d3ee" strokeWidth="0.8" strokeOpacity="0.4">
-              <animate attributeName="r" values="7;12;7" dur="2s" repeatCount="indefinite" />
-              <animate attributeName="stroke-opacity" values="0.4;0;0.4" dur="2s" repeatCount="indefinite" />
+            <circle cx={homeX} cy={homeY} r="4.5" fill="#22d3ee" fillOpacity="0.9" />
+            <circle cx={homeX} cy={homeY} r="8" fill="none" stroke="#22d3ee" strokeWidth="0.8" strokeOpacity="0.4">
+              <animate attributeName="r" values="8;14;8" dur="2.5s" repeatCount="indefinite" />
+              <animate attributeName="stroke-opacity" values="0.4;0;0.4" dur="2.5s" repeatCount="indefinite" />
             </circle>
 
             {/* Device dots */}
             {geoDevices.map((device) => {
               const [dx, dy] = project(device.lat!, device.lon!);
-              const color = device.threatLevel === "malicious" || device.threatLevel === "suspicious"
-                ? threatColor(device.threatLevel)
-                : trustColor(device.trusted ?? 0);
+              const color = dotColor(device);
               return (
                 <g key={`dot-${device.id}`}>
                   <circle
-                    cx={dx} cy={dy} r="3"
+                    cx={dx} cy={dy} r="3.5"
                     fill={color} fillOpacity="0.85"
+                    stroke={color} strokeWidth="0.5" strokeOpacity="0.3"
                     className="cursor-pointer"
                     onMouseEnter={() => setHoveredDevice(device)}
                     onMouseLeave={() => setHoveredDevice(null)}
                   />
                   {device.threatLevel === "malicious" && (
-                    <circle cx={dx} cy={dy} r="6" fill="none" stroke="#ef4444" strokeWidth="0.6" strokeOpacity="0.5">
-                      <animate attributeName="r" values="6;10;6" dur="1.5s" repeatCount="indefinite" />
+                    <circle cx={dx} cy={dy} r="7" fill="none" stroke="#ef4444" strokeWidth="0.8" strokeOpacity="0.5">
+                      <animate attributeName="r" values="7;12;7" dur="1.5s" repeatCount="indefinite" />
                       <animate attributeName="stroke-opacity" values="0.5;0;0.5" dur="1.5s" repeatCount="indefinite" />
                     </circle>
                   )}
@@ -197,13 +247,13 @@ export function ConnectionMap() {
           {/* Tooltip */}
           {hoveredDevice && (
             <div
-              className="absolute pointer-events-none z-10 bg-card/95 backdrop-blur border border-border rounded-md px-2.5 py-1.5 shadow-lg"
+              className="absolute pointer-events-none z-10 bg-card/95 backdrop-blur border border-border rounded-md px-2.5 py-1.5 shadow-lg max-w-[220px]"
               style={{
-                left: Math.min(mousePos.x + 10, 300),
-                top: mousePos.y - 40,
+                left: Math.min(mousePos.x + 12, 280),
+                top: Math.max(mousePos.y - 50, 4),
               }}
             >
-              <div className="text-xs font-mono font-medium">{hoveredDevice.ipAddress}</div>
+              <div className="text-[11px] font-mono font-medium">{hoveredDevice.ipAddress}</div>
               {hoveredDevice.label && (
                 <div className="text-[10px] text-sky-400">{hoveredDevice.label}</div>
               )}
@@ -211,10 +261,10 @@ export function ConnectionMap() {
                 {[hoveredDevice.city, hoveredDevice.countryName].filter(Boolean).join(", ")}
               </div>
               {hoveredDevice.org && (
-                <div className="text-[10px] text-muted-foreground/70">{hoveredDevice.org}</div>
+                <div className="text-[10px] text-muted-foreground/70 truncate">{hoveredDevice.org}</div>
               )}
               {hoveredDevice.threatLevel && hoveredDevice.threatLevel !== "safe" && (
-                <div className={`text-[10px] font-medium ${
+                <div className={`text-[10px] font-medium mt-0.5 ${
                   hoveredDevice.threatLevel === "malicious" ? "text-red-400" : "text-amber-400"
                 }`}>
                   {hoveredDevice.threatLevel}
