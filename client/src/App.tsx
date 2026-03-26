@@ -7,25 +7,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import Dashboard from "@/pages/dashboard";
 import NotFound from "@/pages/not-found";
 import { PerplexityAttribution } from "@/components/PerplexityAttribution";
-import { useEffect, useState } from "react";
-
-function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const [dark, setDark] = useState(() => {
-    return window.matchMedia("(prefers-color-scheme: dark)").matches;
-  });
-
-  useEffect(() => {
-    document.documentElement.classList.toggle("dark", dark);
-  }, [dark]);
-
-  // Default to dark for a network monitor
-  useEffect(() => {
-    setDark(true);
-    document.documentElement.classList.add("dark");
-  }, []);
-
-  return <>{children}</>;
-}
+import { ThemeProvider } from "@/lib/theme";
 
 function AppRouter() {
   return (

@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { KpiCards } from "@/components/kpi-cards";
 import { BandwidthChart } from "@/components/bandwidth-chart";
@@ -6,16 +6,21 @@ import { ConnectionsTable } from "@/components/connections-table";
 import { AlertsPanel } from "@/components/alerts-panel";
 import { ProtocolSplit } from "@/components/protocol-split";
 import { DevicesPanel } from "@/components/devices-panel";
+import { ConnectionMap } from "@/components/connection-map";
+import { AlertTimeline } from "@/components/alert-timeline";
 import { useWebSocket } from "@/lib/useWebSocket";
 import { apiRequest, queryClient } from "@/lib/queryClient";
+import { useTheme } from "@/lib/theme";
 import { Badge } from "@/components/ui/badge";
-import { Wifi, WifiOff } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Wifi, WifiOff, Sun, Moon } from "lucide-react";
 import type { BandwidthSnapshot, Connection, Alert } from "@shared/schema";
 
 export default function Dashboard() {
   const [bandwidth, setBandwidth] = useState<BandwidthSnapshot[]>([]);
   const [connections, setConnections] = useState<Connection[]>([]);
   const [alerts, setAlerts] = useState<Alert[]>([]);
+  const { theme, toggleTheme } = useTheme();
 
   const { data: stats, refetch: refetchStats } = useQuery({
     queryKey: ["/api/stats"],
@@ -82,9 +87,24 @@ export default function Dashboard() {
             )}
           </Badge>
         </div>
-        <span className="text-xs text-muted-foreground font-mono tabular-nums">
-          {new Date().toLocaleTimeString()}
-        </span>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground"
+            onClick={toggleTheme}
+            title={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
+          >
+            {theme === "dark" ? (
+              <Sun className="w-4 h-4" />
+            ) : (
+              <Moon className="w-4 h-4" />
+            )}
+          </Button>
+          <span className="text-xs text-muted-foreground font-mono tabular-nums">
+            {new Date().toLocaleTimeString()}
+          </span>
+        </div>
       </div>
 
       {/* KPI cards */}
@@ -108,7 +128,15 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Devices & Connections row */}
+      {/* Connection map + Alert timeline */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <div className="lg:col-span-2">
+          <ConnectionMap />
+        </div>
+        <AlertTimeline alerts={alerts} />
+      </div>
+
+      {/* Connections table + Devices */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <div className="lg:col-span-2">
           <ConnectionsTable connections={connections} />
