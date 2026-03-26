@@ -14,6 +14,7 @@
 
 import { storage } from "./storage";
 import type { InsertAlert, Connection } from "@shared/schema";
+import { enrichDevice } from "./geo-intel";
 
 // --- Suspicious port definitions ---
 
@@ -232,7 +233,18 @@ function checkNewDevice(conn: Connection, broadcast: (data: any) => void) {
     lastSeen: Date.now(),
     label: null,
     trusted: 0,
+    country: null,
+    countryName: null,
+    city: null,
+    lat: null,
+    lon: null,
+    org: null,
+    threatLevel: null,
+    threatSource: null,
   });
+
+  // Queue GeoIP + threat intel enrichment (async, non-blocking)
+  enrichDevice(ip);
 
   // Don't alert for already-trusted IPs (shouldn't happen for brand new, but be safe)
   if (shouldAlert(`new_device_${ip}`, 300_000)) {

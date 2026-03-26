@@ -315,6 +315,23 @@ def _connection_ratio() -> Tuple[float, float]:
 # Connection scanner
 # ---------------------------------------------------------------------------
 
+# IPs that should never be reported as connections
+_SKIP_IPS = {
+    "127.0.0.1", "::1", "0.0.0.0", "::", "",
+}
+
+def _is_loopback_or_local(ip: str) -> bool:
+    """Return True for loopback, private, and link-local IPs."""
+    if ip in _SKIP_IPS:
+        return True
+    if ip.startswith("127."):
+        return True
+    # IPv6 loopback variants
+    if ip.startswith("::ffff:127."):
+        return True
+    return False
+
+
 def scan_connections() -> List[dict]:
     """Scan active network connections (cross-platform)."""
     result = []
@@ -322,6 +339,11 @@ def scan_connections() -> List[dict]:
         conns = psutil.net_connections(kind="inet")
         for c in conns:
             if not c.raddr:
+                continue
+
+            # Skip loopback connections (e.g. localhost → localhost)
+            remote_ip = c.raddr.ip if c.raddr else ""
+            if _is_loopback_or_local(remote_ip):
                 continue
 
             family = "ipv4" if c.family.name == "AF_INET" else "ipv6"

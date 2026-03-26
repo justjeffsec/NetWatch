@@ -77,6 +77,16 @@ export const knownDevices = sqliteTable("known_devices", {
   lastSeen: integer("last_seen").notNull(), // unix ms
   label: text("label"), // user-assigned friendly name
   trusted: integer("trusted").notNull().default(0), // 0 = unknown, 1 = trusted
+  // GeoIP fields
+  country: text("country"),       // e.g. "US"
+  countryName: text("country_name"), // e.g. "United States"
+  city: text("city"),             // e.g. "Mountain View"
+  lat: real("lat"),               // latitude
+  lon: real("lon"),               // longitude
+  org: text("org"),               // ISP/org name
+  // Threat intel
+  threatLevel: text("threat_level"), // "safe" | "suspicious" | "malicious" | null
+  threatSource: text("threat_source"), // which blocklist flagged it
 });
 
 export const insertKnownDeviceSchema = createInsertSchema(knownDevices).omit({ id: true });

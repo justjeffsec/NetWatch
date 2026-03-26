@@ -43,6 +43,16 @@ export interface IStorage {
   updateDeviceLastSeen(ip: string, timestamp: number): void;
   trustDevice(id: number, trusted: boolean): void;
   labelDevice(id: number, label: string): void;
+  updateDeviceGeo(ip: string, data: {
+    country: string | null;
+    countryName: string | null;
+    city: string | null;
+    lat: number | null;
+    lon: number | null;
+    org: string | null;
+    threatLevel: string | null;
+    threatSource: string | null;
+  }): void;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -156,6 +166,22 @@ export class DatabaseStorage implements IStorage {
     db.update(knownDevices)
       .set({ label })
       .where(eq(knownDevices.id, id))
+      .run();
+  }
+
+  updateDeviceGeo(ip: string, data: {
+    country: string | null;
+    countryName: string | null;
+    city: string | null;
+    lat: number | null;
+    lon: number | null;
+    org: string | null;
+    threatLevel: string | null;
+    threatSource: string | null;
+  }): void {
+    db.update(knownDevices)
+      .set(data)
+      .where(eq(knownDevices.ipAddress, ip))
       .run();
   }
 }

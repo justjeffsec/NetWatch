@@ -9,14 +9,26 @@ import {
   Shield,
   ShieldCheck,
   ShieldAlert,
+  ShieldBan,
   Monitor,
   Pencil,
   Check,
   X,
   Search,
+  Globe,
+  MapPin,
 } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import type { KnownDevice } from "@shared/schema";
+
+/** Country code → emoji flag */
+function countryFlag(code: string | null): string {
+  if (!code || code.length !== 2) return "";
+  const offset = 127397;
+  return String.fromCodePoint(
+    ...code.toUpperCase().split("").map((c) => c.charCodeAt(0) + offset)
+  );
+}
 
 function timeAgo(ts: number): string {
   const diff = Date.now() - ts;
@@ -26,12 +38,36 @@ function timeAgo(ts: number): string {
   return `${Math.floor(diff / 86_400_000)}d ago`;
 }
 
+function threatBadgeClass(level: string | null): string {
+  switch (level) {
+    case "malicious":
+      return "bg-red-500/15 text-red-400 border-red-500/20";
+    case "suspicious":
+      return "bg-amber-500/15 text-amber-400 border-amber-500/20";
+    case "safe":
+      return "bg-emerald-500/10 text-emerald-400/70 border-emerald-500/15";
+    default:
+      return "bg-slate-500/10 text-slate-400/50 border-slate-500/15";
+  }
+}
+
+function threatIcon(level: string | null) {
+  switch (level) {
+    case "malicious":
+      return <ShieldBan className="w-4 h-4 text-red-400" />;
+    case "suspicious":
+      return <ShieldAlert className="w-4 h-4 text-amber-400" />;
+    default:
+      return null;
+  }
+}
+
 export function DevicesPanel() {
   const [filter, setFilter] = useState("");
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editLabel, setEditLabel] = useState("");
 
-  const { data: devices = [], refetch } = useQuery<KnownDevice[]>({
+  const { data: devices = [] } = useQuery<KnownDevice[]>({
     queryKey: ["/api/devices"],
     refetchInterval: 10_000,
   });
@@ -60,12 +96,17 @@ export function DevicesPanel() {
     const q = filter.toLowerCase();
     return (
       d.ipAddress.toLowerCase().includes(q) ||
-      (d.label && d.label.toLowerCase().includes(q))
+      (d.label && d.label.toLowerCase().includes(q)) ||
+      (d.country && d.country.toLowerCase().includes(q)) ||
+      (d.countryName && d.countryName.toLowerCase().includes(q)) ||
+      (d.city && d.city.toLowerCase().includes(q)) ||
+      (d.org && d.org.toLowerCase().includes(q))
     );
   });
 
   const trustedCount = devices.filter((d) => d.trusted).length;
   const untrustedCount = devices.length - trustedCount;
+  const maliciousCount = devices.filter((d) => d.threatLevel === "malicious").length;
 
   const startEdit = (device: KnownDevice) => {
     setEditingId(device.id);
@@ -80,7 +121,7 @@ export function DevicesPanel() {
     <Card className="border-card-border">
       <CardHeader className="pb-2 pt-4 px-4">
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <CardTitle className="text-sm font-medium">Known Devices</CardTitle>
             <Badge
               variant="outline"
@@ -96,6 +137,14 @@ export function DevicesPanel() {
                 {untrustedCount} new
               </Badge>
             )}
+            {maliciousCount > 0 && (
+              <Badge
+                variant="outline"
+                className="text-[10px] px-1.5 py-0 bg-red-500/15 text-red-400 border-red-500/20 animate-pulse"
+              >
+                {maliciousCount} threats
+              </Badge>
+            )}
           </div>
           <span className="text-[10px] text-muted-foreground font-mono">
             {devices.length} total
@@ -103,13 +152,12 @@ export function DevicesPanel() {
         </div>
       </CardHeader>
       <CardContent className="px-4 pb-2 pt-1">
-        {/* Search */}
         <div className="relative mb-2">
           <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-muted-foreground" />
           <Input
             value={filter}
             onChange={(e) => setFilter(e.target.value)}
-            placeholder="Filter by IP or label..."
+            placeholder="Filter by IP, label, country, or org..."
             className="h-7 pl-7 text-xs bg-muted/30 border-border/50"
           />
         </div>
@@ -131,17 +179,21 @@ export function DevicesPanel() {
                 <div
                   key={device.id}
                   className={`flex items-center gap-3 px-4 py-2.5 border-b border-border/50 hover:bg-muted/30 transition-colors group ${
-                    device.trusted
-                      ? "bg-emerald-500/[0.02]"
-                      : ""
+                    device.threatLevel === "malicious"
+                      ? "bg-red-500/[0.04]"
+                      : device.trusted
+                        ? "bg-emerald-500/[0.02]"
+                        : ""
                   }`}
                 >
-                  {/* Trust icon */}
+                  {/* Trust/threat icon */}
                   <div className="flex-shrink-0">
-                    {device.trusted ? (
-                      <ShieldCheck className="w-4 h-4 text-emerald-400" />
-                    ) : (
-                      <ShieldAlert className="w-4 h-4 text-amber-400/70" />
+                    {threatIcon(device.threatLevel) || (
+                      device.trusted ? (
+                        <ShieldCheck className="w-4 h-4 text-emerald-400" />
+                      ) : (
+                        <ShieldAlert className="w-4 h-4 text-amber-400/70" />
+                      )
                     )}
                   </div>
 
@@ -160,35 +212,30 @@ export function DevicesPanel() {
                           }}
                           autoFocus
                         />
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-5 w-5 p-0"
-                          onClick={() => saveLabel(device.id)}
-                        >
+                        <Button variant="ghost" size="sm" className="h-5 w-5 p-0" onClick={() => saveLabel(device.id)}>
                           <Check className="w-3 h-3 text-emerald-400" />
                         </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-5 w-5 p-0"
-                          onClick={() => setEditingId(null)}
-                        >
+                        <Button variant="ghost" size="sm" className="h-5 w-5 p-0" onClick={() => setEditingId(null)}>
                           <X className="w-3 h-3 text-muted-foreground" />
                         </Button>
                       </div>
                     ) : (
                       <>
-                        <div className="flex items-center gap-2">
-                          <span className="text-xs font-mono truncate">
-                            {device.ipAddress}
-                          </span>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="text-xs font-mono truncate">{device.ipAddress}</span>
                           {device.label && (
-                            <Badge
-                              variant="outline"
-                              className="text-[9px] px-1 py-0 bg-sky-500/10 text-sky-400 border-sky-500/15"
-                            >
+                            <Badge variant="outline" className="text-[9px] px-1 py-0 bg-sky-500/10 text-sky-400 border-sky-500/15">
                               {device.label}
+                            </Badge>
+                          )}
+                          {device.country && (
+                            <span className="text-[10px]" title={`${device.countryName || device.country}`}>
+                              {countryFlag(device.country)}
+                            </span>
+                          )}
+                          {device.threatLevel && device.threatLevel !== "safe" && (
+                            <Badge variant="outline" className={`text-[9px] px-1 py-0 ${threatBadgeClass(device.threatLevel)}`}>
+                              {device.threatLevel}
                             </Badge>
                           )}
                           <button
@@ -199,12 +246,28 @@ export function DevicesPanel() {
                           </button>
                         </div>
                         <div className="flex items-center gap-3 mt-0.5">
-                          <span className="text-[10px] text-muted-foreground/60 font-mono">
-                            first: {timeAgo(device.firstSeen)}
-                          </span>
-                          <span className="text-[10px] text-muted-foreground/60 font-mono">
-                            last: {timeAgo(device.lastSeen)}
-                          </span>
+                          {(device.city || device.countryName) && (
+                            <span className="flex items-center gap-0.5 text-[10px] text-muted-foreground/60">
+                              <MapPin className="w-2.5 h-2.5" />
+                              {[device.city, device.countryName].filter(Boolean).join(", ")}
+                            </span>
+                          )}
+                          {device.org && (
+                            <span className="flex items-center gap-0.5 text-[10px] text-muted-foreground/60">
+                              <Globe className="w-2.5 h-2.5" />
+                              {device.org}
+                            </span>
+                          )}
+                          {!device.city && !device.org && (
+                            <>
+                              <span className="text-[10px] text-muted-foreground/60 font-mono">
+                                first: {timeAgo(device.firstSeen)}
+                              </span>
+                              <span className="text-[10px] text-muted-foreground/60 font-mono">
+                                last: {timeAgo(device.lastSeen)}
+                              </span>
+                            </>
+                          )}
                         </div>
                       </>
                     )}
@@ -228,15 +291,9 @@ export function DevicesPanel() {
                     disabled={trustMutation.isPending}
                   >
                     {device.trusted ? (
-                      <>
-                        <Shield className="w-3 h-3 mr-1" />
-                        Trusted
-                      </>
+                      <><Shield className="w-3 h-3 mr-1" />Trusted</>
                     ) : (
-                      <>
-                        <ShieldCheck className="w-3 h-3 mr-1" />
-                        Trust
-                      </>
+                      <><ShieldCheck className="w-3 h-3 mr-1" />Trust</>
                     )}
                   </Button>
                 </div>

@@ -5,6 +5,14 @@ import { storage } from "./storage";
 import { insertAlertThresholdSchema } from "@shared/schema";
 import { analyzeConnections, analyzeBandwidth } from "./security-engine";
 
+/** Filter out loopback/local IPs at the API boundary */
+function isLocalIp(ip: string): boolean {
+  if (!ip || ip === "" || ip === "0.0.0.0" || ip === "::" || ip === "::1") return true;
+  if (ip.startsWith("127.")) return true;
+  if (ip.startsWith("::ffff:127.")) return true;
+  return false;
+}
+
 // Simulated network data generator for demo/development
 // On Windows, the real monitor (netwatch_monitor.py) posts data via REST API
 class NetworkSimulator {
@@ -258,6 +266,11 @@ export async function registerRoutes(server: Server, app: Express) {
   });
 
   app.post("/api/connections", (req, res) => {
+    // Drop loopback connections at the API boundary
+    if (isLocalIp(req.body.remoteAddr)) {
+      res.status(200).json({ skipped: true });
+      return;
+    }
     const conn = storage.addConnection(req.body);
     broadcast({ type: "connection", data: conn });
     // Run security analysis on this connection
@@ -272,7 +285,9 @@ export async function registerRoutes(server: Server, app: Express) {
       res.status(400).json({ error: "Expected array of connections" });
       return;
     }
-    const saved = items.map(item => {
+    // Filter out loopback/local before storing
+    const filtered = items.filter(item => !isLocalIp(item.remoteAddr));
+    const saved = filtered.map(item => {
       const conn = storage.addConnection(item);
       broadcast({ type: "connection", data: conn });
       return conn;

@@ -1,3 +1,4 @@
+import { useState, useEffect, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -11,8 +12,20 @@ import {
   Shield,
   Activity,
   Network,
+  Bell,
+  BellOff,
+  Download,
+  FileJson,
+  FileSpreadsheet,
 } from "lucide-react";
 import { timeAgo } from "@/lib/format";
+import {
+  requestNotificationPermission,
+  sendBrowserNotification,
+  playAlertTone,
+  exportAlertsCsv,
+  exportAlertsJson,
+} from "@/lib/notifications";
 import type { Alert } from "@shared/schema";
 
 interface Props {
@@ -37,6 +50,40 @@ const TYPE_LABELS: Record<string, string> = {
 
 export function AlertsPanel({ alerts, onDismiss, onDismissAll }: Props) {
   const active = alerts.filter((a) => !a.dismissed);
+  const [notificationsEnabled, setNotificationsEnabled] = useState(false);
+  const [showExport, setShowExport] = useState(false);
+  const prevAlertCount = useRef(active.length);
+
+  // Detect new alerts and send notifications
+  useEffect(() => {
+    if (!notificationsEnabled) return;
+    if (active.length > prevAlertCount.current) {
+      // New alert(s) arrived
+      const newest = active[0];
+      if (newest) {
+        sendBrowserNotification(
+          `NetWatch: ${newest.title}`,
+          newest.message,
+          newest.severity
+        );
+        playAlertTone(newest.severity);
+      }
+    }
+    prevAlertCount.current = active.length;
+  }, [active.length, notificationsEnabled, active]);
+
+  const toggleNotifications = async () => {
+    if (notificationsEnabled) {
+      setNotificationsEnabled(false);
+      return;
+    }
+    const granted = await requestNotificationPermission();
+    setNotificationsEnabled(granted);
+    if (granted) {
+      // Play a soft test tone so user knows it works
+      playAlertTone("warning");
+    }
+  };
 
   const severityIcon = (s: string) => {
     switch (s) {
@@ -72,8 +119,9 @@ export function AlertsPanel({ alerts, onDismiss, onDismissAll }: Props) {
   };
 
   const typeBadgeClass = (type: string) => {
-    // Security-related types get a distinct color
-    if (["suspicious_port", "port_scan", "new_device", "rapid_reconnect", "dns_anomaly"].includes(type)) {
+    if (
+      ["suspicious_port", "port_scan", "new_device", "rapid_reconnect", "dns_anomaly"].includes(type)
+    ) {
       return "bg-rose-500/10 text-rose-400/80 border-rose-500/15";
     }
     if (["large_transfer", "unusual_protocol"].includes(type)) {
@@ -91,10 +139,7 @@ export function AlertsPanel({ alerts, onDismiss, onDismissAll }: Props) {
           <div className="flex items-center gap-2">
             <CardTitle className="text-sm font-medium">Alerts</CardTitle>
             {active.length > 0 && (
-              <Badge
-                variant="destructive"
-                className="text-[10px] px-1.5 py-0"
-              >
+              <Badge variant="destructive" className="text-[10px] px-1.5 py-0">
                 {active.length}
               </Badge>
             )}
@@ -107,18 +152,71 @@ export function AlertsPanel({ alerts, onDismiss, onDismissAll }: Props) {
               </Badge>
             )}
           </div>
-          {active.length > 0 && (
+          <div className="flex items-center gap-1">
+            {/* Notification toggle */}
             <Button
               variant="ghost"
               size="sm"
-              className="h-6 text-xs text-muted-foreground"
-              onClick={onDismissAll}
-              data-testid="button-dismiss-all"
+              className={`h-6 w-6 p-0 ${notificationsEnabled ? "text-emerald-400" : "text-muted-foreground"}`}
+              onClick={toggleNotifications}
+              title={notificationsEnabled ? "Notifications on" : "Enable notifications"}
             >
-              <CheckCheck className="w-3 h-3 mr-1" />
-              Dismiss all
+              {notificationsEnabled ? (
+                <Bell className="w-3.5 h-3.5" />
+              ) : (
+                <BellOff className="w-3.5 h-3.5" />
+              )}
             </Button>
-          )}
+
+            {/* Export button */}
+            <div className="relative">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-6 w-6 p-0 text-muted-foreground"
+                onClick={() => setShowExport(!showExport)}
+                title="Export alerts"
+              >
+                <Download className="w-3.5 h-3.5" />
+              </Button>
+              {showExport && (
+                <div className="absolute right-0 top-7 z-50 bg-card border border-border rounded-md shadow-lg p-1 space-y-0.5 min-w-[120px]">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 w-full justify-start text-xs px-2"
+                    onClick={() => { exportAlertsCsv(alerts); setShowExport(false); }}
+                  >
+                    <FileSpreadsheet className="w-3 h-3 mr-1.5" />
+                    Export CSV
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 w-full justify-start text-xs px-2"
+                    onClick={() => { exportAlertsJson(alerts); setShowExport(false); }}
+                  >
+                    <FileJson className="w-3 h-3 mr-1.5" />
+                    Export JSON
+                  </Button>
+                </div>
+              )}
+            </div>
+
+            {/* Dismiss all */}
+            {active.length > 0 && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-6 text-xs text-muted-foreground"
+                onClick={onDismissAll}
+                data-testid="button-dismiss-all"
+              >
+                <CheckCheck className="w-3 h-3 mr-1" />
+                Dismiss all
+              </Button>
+            )}
+          </div>
         </div>
       </CardHeader>
       <CardContent className="px-0 pb-0">
@@ -141,9 +239,7 @@ export function AlertsPanel({ alerts, onDismiss, onDismissAll }: Props) {
                   <div className="mt-0.5">{severityIcon(a.severity)}</div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-1.5 mb-0.5 flex-wrap">
-                      <span className="text-xs font-medium truncate">
-                        {a.title}
-                      </span>
+                      <span className="text-xs font-medium truncate">{a.title}</span>
                       <Badge
                         variant="outline"
                         className={`text-[9px] px-1 py-0 ${severityBadge(a.severity)}`}
