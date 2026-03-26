@@ -1,0 +1,29 @@
+[Unit]
+Description=NetWatch Dashboard (Node.js)
+Documentation=https://github.com/netwatch
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/netwatch
+ExecStart=/usr/bin/node /opt/netwatch/dist/index.cjs
+Environment=NODE_ENV=production
+Restart=on-failure
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=netwatch-dashboard
+
+# Security
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=read-only
+PrivateTmp=true
+ReadWritePaths=/opt/netwatch
+
+User=netwatch
+Group=netwatch
+
+[Install]
+WantedBy=multi-user.target

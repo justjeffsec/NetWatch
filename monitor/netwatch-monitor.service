@@ -1,0 +1,32 @@
+[Unit]
+Description=NetWatch Network Traffic Monitor
+Documentation=https://github.com/netwatch
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/python3 /opt/netwatch/monitor/netwatch_monitor.py --api-url http://localhost:5000
+Restart=on-failure
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=netwatch-monitor
+
+# Security hardening
+NoNewPrivileges=false
+ProtectSystem=strict
+ProtectHome=read-only
+PrivateTmp=true
+
+# CAP_NET_ADMIN for connection scanning without full root
+# CAP_NET_RAW if you want packet-level capture in the future
+AmbientCapabilities=CAP_NET_ADMIN CAP_NET_RAW
+CapabilityBoundingSet=CAP_NET_ADMIN CAP_NET_RAW
+
+# Run as a dedicated user (created by install.sh), falling back to root
+User=netwatch
+Group=netwatch
+
+[Install]
+WantedBy=multi-user.target
