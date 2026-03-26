@@ -67,9 +67,12 @@ function dotColor(device: KnownDevice): string {
   return device.trusted ? "#34d399" : "#94a3b8";
 }
 
-/** Default home location (center of US) */
-const HOME_LAT = 39.8;
-const HOME_LON = -98.5;
+interface HomeLocation {
+  lat: number;
+  lon: number;
+  city: string;
+  country: string;
+}
 
 export function ConnectionMap() {
   const svgRef = useRef<SVGSVGElement>(null);
@@ -80,6 +83,15 @@ export function ConnectionMap() {
     queryKey: ["/api/devices"],
     refetchInterval: 15_000,
   });
+
+  const { data: homeData } = useQuery<HomeLocation>({
+    queryKey: ["/api/home-location"],
+    staleTime: 300_000, // cache for 5 min
+  });
+
+  const homeLat = homeData?.lat ?? 39.8;
+  const homeLon = homeData?.lon ?? -98.5;
+  const homeLabel = homeData?.city || "Home";
 
   // Convert TopoJSON → GeoJSON country features (memoized)
   const countries = useMemo(() => {
@@ -94,7 +106,7 @@ export function ConnectionMap() {
 
   // Only show devices that have geo data
   const geoDevices = devices.filter((d) => d.lat != null && d.lon != null && d.lat !== 0 && d.lon !== 0);
-  const [homeX, homeY] = project(HOME_LAT, HOME_LON);
+  const [homeX, homeY] = project(homeLat, homeLon);
 
   const handleMouseMove = (e: React.MouseEvent) => {
     const rect = svgRef.current?.getBoundingClientRect();
@@ -218,6 +230,17 @@ export function ConnectionMap() {
               <animate attributeName="r" values="8;14;8" dur="2.5s" repeatCount="indefinite" />
               <animate attributeName="stroke-opacity" values="0.4;0;0.4" dur="2.5s" repeatCount="indefinite" />
             </circle>
+            {/* Home label */}
+            <text
+              x={homeX} y={homeY - 10}
+              textAnchor="middle"
+              fill="#22d3ee"
+              fontSize="8"
+              fontFamily="monospace"
+              opacity="0.7"
+            >
+              {homeLabel}
+            </text>
 
             {/* Device dots */}
             {geoDevices.map((device) => {

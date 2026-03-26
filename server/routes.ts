@@ -362,6 +362,28 @@ export async function registerRoutes(server: Server, app: Express) {
     res.json({ ok: true });
   });
 
+  // Home location (auto-detected from server's public IP)
+  let homeLocation: { lat: number; lon: number; city: string; country: string } | null = null;
+
+  // Detect on startup (non-blocking)
+  (async () => {
+    try {
+      const resp = await fetch("http://ip-api.com/json/?fields=lat,lon,city,country", {
+        signal: AbortSignal.timeout(5000),
+      });
+      const data = await resp.json();
+      if (data.lat && data.lon) {
+        homeLocation = { lat: data.lat, lon: data.lon, city: data.city || "", country: data.country || "" };
+      }
+    } catch {
+      // Fallback stays null — client will use default
+    }
+  })();
+
+  app.get("/api/home-location", (_req, res) => {
+    res.json(homeLocation || { lat: 39.8, lon: -98.5, city: "Unknown", country: "US" });
+  });
+
   // Stats summary
   app.get("/api/stats", (_req, res) => {
     const latest = storage.getLatestBandwidth();
