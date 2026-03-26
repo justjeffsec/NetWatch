@@ -362,10 +362,10 @@ export async function registerRoutes(server: Server, app: Express) {
     res.json({ ok: true });
   });
 
-  // Home location (auto-detected from server's public IP)
-  let homeLocation: { lat: number; lon: number; city: string; country: string } | null = null;
+  // Home location — user override stored in DB, auto-detected as fallback
+  let autoDetectedHome: { lat: number; lon: number; city: string; country: string } | null = null;
 
-  // Detect on startup (non-blocking)
+  // Auto-detect on startup (non-blocking)
   (async () => {
     try {
       const resp = await fetch("http://ip-api.com/json/?fields=lat,lon,city,country", {
@@ -373,15 +373,49 @@ export async function registerRoutes(server: Server, app: Express) {
       });
       const data = await resp.json();
       if (data.lat && data.lon) {
-        homeLocation = { lat: data.lat, lon: data.lon, city: data.city || "", country: data.country || "" };
+        autoDetectedHome = { lat: data.lat, lon: data.lon, city: data.city || "", country: data.country || "" };
       }
     } catch {
-      // Fallback stays null — client will use default
+      // Fallback stays null
     }
   })();
 
+  // Check for user-set override in a simple JSON file
+  const homeConfigPath = require("path").join(process.cwd(), "home-location.json");
+  function getHomeOverride(): { lat: number; lon: number; city: string; country: string } | null {
+    try {
+      const fs = require("fs");
+      if (fs.existsSync(homeConfigPath)) {
+        return JSON.parse(fs.readFileSync(homeConfigPath, "utf-8"));
+      }
+    } catch { /* no override */ }
+    return null;
+  }
+
   app.get("/api/home-location", (_req, res) => {
-    res.json(homeLocation || { lat: 39.8, lon: -98.5, city: "Unknown", country: "US" });
+    // Priority: user override > auto-detected > fallback
+    const override = getHomeOverride();
+    if (override) {
+      res.json(override);
+      return;
+    }
+    res.json(autoDetectedHome || { lat: 39.8, lon: -98.5, city: "Unknown", country: "US" });
+  });
+
+  app.post("/api/home-location", (req, res) => {
+    try {
+      const { lat, lon, city, country } = req.body;
+      if (typeof lat !== "number" || typeof lon !== "number") {
+        res.status(400).json({ error: "lat and lon are required numbers" });
+        return;
+      }
+      const data = { lat, lon, city: city || "", country: country || "" };
+      const fs = require("fs");
+      fs.writeFileSync(homeConfigPath, JSON.stringify(data, null, 2));
+      res.json({ ok: true, ...data });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
   });
 
   // Stats summary
