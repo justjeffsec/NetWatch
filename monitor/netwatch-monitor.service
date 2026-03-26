@@ -18,6 +18,7 @@ NoNewPrivileges=false
 ProtectSystem=strict
 ProtectHome=read-only
 PrivateTmp=true
+ReadOnlyPaths=/proc/net
 
 # CAP_NET_ADMIN for connection scanning without full root
 # CAP_NET_RAW if you want packet-level capture in the future

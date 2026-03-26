@@ -240,19 +240,30 @@ export async function registerRoutes(server: Server, app: Express) {
 
   // POST endpoint for the real Python monitor to push data
   app.post("/api/bandwidth", (req, res) => {
-    const snapshot = storage.addBandwidthSnapshot(req.body);
-    // Broadcast to WebSocket clients
-    broadcast({ type: "bandwidth", data: { [req.body.protocol]: snapshot } });
+    try {
+      const body = req.body;
+      if (!body || typeof body.timestamp !== "number" || !body.protocol) {
+        res.status(400).json({ error: "Invalid bandwidth data" });
+        return;
+      }
+      // Stop simulator once real data flows in
+      simulator.stop();
 
-    // Run security bandwidth analysis
-    const latest = storage.getLatestBandwidth();
-    const ipv4In = latest.filter(s => s.protocol === "ipv4").reduce((sum, s) => sum + s.rateIn, 0) / Math.max(1, latest.filter(s => s.protocol === "ipv4").length);
-    const ipv6In = latest.filter(s => s.protocol === "ipv6").reduce((sum, s) => sum + s.rateIn, 0) / Math.max(1, latest.filter(s => s.protocol === "ipv6").length);
-    const ipv4Out = latest.filter(s => s.protocol === "ipv4").reduce((sum, s) => sum + s.rateOut, 0) / Math.max(1, latest.filter(s => s.protocol === "ipv4").length);
-    const ipv6Out = latest.filter(s => s.protocol === "ipv6").reduce((sum, s) => sum + s.rateOut, 0) / Math.max(1, latest.filter(s => s.protocol === "ipv6").length);
-    analyzeBandwidth(ipv4In + ipv6In, ipv4Out + ipv6Out, broadcast);
+      const snapshot = storage.addBandwidthSnapshot(body);
+      broadcast({ type: "bandwidth", data: { [body.protocol]: snapshot } });
 
-    res.status(201).json(snapshot);
+      // Run security bandwidth analysis
+      const latest = storage.getLatestBandwidth();
+      const ipv4In = latest.filter(s => s.protocol === "ipv4").reduce((sum, s) => sum + s.rateIn, 0) / Math.max(1, latest.filter(s => s.protocol === "ipv4").length);
+      const ipv6In = latest.filter(s => s.protocol === "ipv6").reduce((sum, s) => sum + s.rateIn, 0) / Math.max(1, latest.filter(s => s.protocol === "ipv6").length);
+      const ipv4Out = latest.filter(s => s.protocol === "ipv4").reduce((sum, s) => sum + s.rateOut, 0) / Math.max(1, latest.filter(s => s.protocol === "ipv4").length);
+      const ipv6Out = latest.filter(s => s.protocol === "ipv6").reduce((sum, s) => sum + s.rateOut, 0) / Math.max(1, latest.filter(s => s.protocol === "ipv6").length);
+      analyzeBandwidth(ipv4In + ipv6In, ipv4Out + ipv6Out, broadcast);
+
+      res.status(201).json(snapshot);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message || "Internal error" });
+    }
   });
 
   // Connections
@@ -266,35 +277,41 @@ export async function registerRoutes(server: Server, app: Express) {
   });
 
   app.post("/api/connections", (req, res) => {
-    // Drop loopback connections at the API boundary
-    if (isLocalIp(req.body.remoteAddr)) {
-      res.status(200).json({ skipped: true });
-      return;
+    try {
+      // Drop loopback connections at the API boundary
+      if (isLocalIp(req.body.remoteAddr)) {
+        res.status(200).json({ skipped: true });
+        return;
+      }
+      const conn = storage.addConnection(req.body);
+      broadcast({ type: "connection", data: conn });
+      analyzeConnections([conn], broadcast);
+      res.status(201).json(conn);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message || "Internal error" });
     }
-    const conn = storage.addConnection(req.body);
-    broadcast({ type: "connection", data: conn });
-    // Run security analysis on this connection
-    analyzeConnections([conn], broadcast);
-    res.status(201).json(conn);
   });
 
   // Batch connections endpoint (more efficient for the monitor)
   app.post("/api/connections/batch", (req, res) => {
-    const items: any[] = req.body;
-    if (!Array.isArray(items)) {
-      res.status(400).json({ error: "Expected array of connections" });
-      return;
+    try {
+      const items: any[] = req.body;
+      if (!Array.isArray(items)) {
+        res.status(400).json({ error: "Expected array of connections" });
+        return;
+      }
+      // Filter out loopback/local before storing
+      const filtered = items.filter(item => !isLocalIp(item?.remoteAddr));
+      const saved = filtered.map(item => {
+        const conn = storage.addConnection(item);
+        broadcast({ type: "connection", data: conn });
+        return conn;
+      });
+      analyzeConnections(saved, broadcast);
+      res.status(201).json({ count: saved.length });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message || "Internal error" });
     }
-    // Filter out loopback/local before storing
-    const filtered = items.filter(item => !isLocalIp(item.remoteAddr));
-    const saved = filtered.map(item => {
-      const conn = storage.addConnection(item);
-      broadcast({ type: "connection", data: conn });
-      return conn;
-    });
-    // Run security analysis on all new connections
-    analyzeConnections(saved, broadcast);
-    res.status(201).json({ count: saved.length });
   });
 
   // Alerts

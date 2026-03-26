@@ -119,7 +119,7 @@ const recentRemotes: Map<string, number[]> = new Map(); // IP → timestamps
 const portAccessMap: Map<string, Set<number>> = new Map(); // IP → set of ports
 const portAccessTimestamps: Map<string, number> = new Map(); // IP → first seen this window
 
-// Cleanup interval (clear stale tracking data every 10 min)
+// Cleanup interval (clear stale tracking data every 5 min)
 setInterval(() => {
   const cutoff = Date.now() - 600_000;
   // Clean connection history
@@ -138,6 +138,17 @@ setInterval(() => {
     const fresh = times.filter(t => t > cutoff);
     if (fresh.length === 0) recentRemotes.delete(ip);
     else recentRemotes.set(ip, fresh);
+  }
+  // Clean cooldown map (prevent unbounded growth)
+  const cooldownCutoff = Date.now() - 600_000;
+  for (const key of Object.keys(COOLDOWNS)) {
+    if (COOLDOWNS[key] < cooldownCutoff) {
+      delete COOLDOWNS[key];
+    }
+  }
+  // Clean DNS query counter
+  while (dnsQueryCount.length > 0 && dnsQueryCount[0].timestamp < cutoff) {
+    dnsQueryCount.shift();
   }
 }, 300_000);
 

@@ -8,7 +8,7 @@ import {
 } from "@shared/schema";
 import { drizzle } from "drizzle-orm/better-sqlite3";
 import Database from "better-sqlite3";
-import { eq, desc, gte, and } from "drizzle-orm";
+import { eq, desc, gte, lte, and } from "drizzle-orm";
 
 const sqlite = new Database("data.db");
 sqlite.pragma("journal_mode = WAL");
@@ -187,3 +187,26 @@ export class DatabaseStorage implements IStorage {
 }
 
 export const storage = new DatabaseStorage();
+
+// Periodic DB cleanup: remove data older than 24h every 30 min
+setInterval(() => {
+  const cutoff24h = Date.now() - 86_400_000;
+  const cutoff1h = Date.now() - 3_600_000;
+  try {
+    // Keep only 24h of bandwidth snapshots
+    db.delete(bandwidthSnapshots)
+      .where(lte(bandwidthSnapshots.timestamp, cutoff24h))
+      .run();
+    // Keep only 1h of connections (they accumulate fast)
+    db.delete(connections)
+      .where(lte(connections.timestamp, cutoff1h))
+      .run();
+    // Keep only 7 days of alerts
+    const cutoff7d = Date.now() - 7 * 86_400_000;
+    db.delete(alerts)
+      .where(and(lte(alerts.timestamp, cutoff7d), eq(alerts.dismissed, 1)))
+      .run();
+  } catch {
+    // Cleanup errors are non-fatal
+  }
+}, 1_800_000); // every 30 minutes

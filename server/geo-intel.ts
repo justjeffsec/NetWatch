@@ -9,6 +9,8 @@ import { storage } from "./storage";
 
 // --- GeoIP Cache & Rate Limiting ---
 const geoCache = new Map<string, GeoResult>();
+const threatCache = new Map<string, ThreatResult>();
+const MAX_CACHE_SIZE = 5000; // Prevent unbounded memory growth
 const GEO_RATE_LIMIT_MS = 1500; // ~40 req/min to stay under ip-api's 45/min limit
 let lastGeoRequest = 0;
 const geoQueue: string[] = [];
@@ -22,9 +24,6 @@ interface GeoResult {
   lon: number;
   org: string;
 }
-
-// --- Threat Intel Cache ---
-const threatCache = new Map<string, ThreatResult>();
 
 interface ThreatResult {
   threatLevel: "safe" | "suspicious" | "malicious";
@@ -77,12 +76,15 @@ async function processGeoQueue(): Promise<void> {
       // Update the device record
       const device = storage.getKnownDeviceByIp(ip);
       if (device) {
+        // Avoid Null Island (0,0) — treat as unknown
+        const lat = (geo?.lat && geo?.lon && !(geo.lat === 0 && geo.lon === 0)) ? geo.lat : null;
+        const lon = (geo?.lat && geo?.lon && !(geo.lat === 0 && geo.lon === 0)) ? geo.lon : null;
         storage.updateDeviceGeo(ip, {
           country: geo?.country || null,
           countryName: geo?.countryName || null,
           city: geo?.city || null,
-          lat: geo?.lat || null,
-          lon: geo?.lon || null,
+          lat,
+          lon,
           org: geo?.org || null,
           threatLevel: threat?.threatLevel || null,
           threatSource: threat?.threatSource || null,
@@ -116,6 +118,10 @@ async function fetchGeoIp(ip: string): Promise<GeoResult | null> {
         lon: data.lon || 0,
         org: data.org || data.isp || "",
       };
+      if (geoCache.size > MAX_CACHE_SIZE) {
+        const firstKey = geoCache.keys().next().value;
+        if (firstKey) geoCache.delete(firstKey);
+      }
       geoCache.set(ip, result);
       return result;
     }
@@ -154,6 +160,10 @@ async function checkThreat(ip: string): Promise<ThreatResult | null> {
         threatLevel: level,
         threatSource: `blocklist.de (${attacks} reported attacks)`,
       };
+      if (threatCache.size > MAX_CACHE_SIZE) {
+        const firstKey = threatCache.keys().next().value;
+        if (firstKey) threatCache.delete(firstKey);
+      }
       threatCache.set(ip, result);
       return result;
     }
@@ -163,6 +173,10 @@ async function checkThreat(ip: string): Promise<ThreatResult | null> {
 
   // Default: safe
   const result: ThreatResult = { threatLevel: "safe", threatSource: "No threats found" };
+  if (threatCache.size > MAX_CACHE_SIZE) {
+    const firstKey = threatCache.keys().next().value;
+    if (firstKey) threatCache.delete(firstKey);
+  }
   threatCache.set(ip, result);
   return result;
 }

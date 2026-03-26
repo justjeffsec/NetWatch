@@ -418,6 +418,8 @@ class AlertEngine:
                         f"({format_bytes(self.baseline_in)}/s)"
                     ),
                     "dismissed": 0,
+                    "sourceIp": None,
+                    "category": "performance",
                 })
                 self.last_alert_time[key] = now
 
@@ -435,6 +437,8 @@ class AlertEngine:
                         f"({format_bytes(self.baseline_out)}/s)"
                     ),
                     "dismissed": 0,
+                    "sourceIp": None,
+                    "category": "performance",
                 })
                 self.last_alert_time[key] = now
 
@@ -453,7 +457,7 @@ class NetWatchMonitor:
         self.running = True
         self.last_conn_scan = 0
 
-    def post(self, endpoint: str, data: dict) -> bool:
+    def post(self, endpoint: str, data) -> bool:
         try:
             resp = requests.post(
                 f"{self.api_url}{endpoint}", json=data, timeout=5,
