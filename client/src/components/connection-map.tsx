@@ -1,11 +1,8 @@
 import { useMemo, useRef, useState } from "react";
-import { useQuery, useMutation } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Globe, MapPin, Settings2, Check, X } from "lucide-react";
-import { apiRequest, queryClient } from "@/lib/queryClient";
+import { Globe } from "lucide-react";
 import * as topojson from "topojson-client";
 import worldData from "@/data/world-110m.json";
 import type { KnownDevice } from "@shared/schema";
@@ -92,35 +89,6 @@ export function ConnectionMap() {
     staleTime: 300_000,
   });
 
-  const [editingHome, setEditingHome] = useState(false);
-  const [editCity, setEditCity] = useState("");
-  const [editLat, setEditLat] = useState("");
-  const [editLon, setEditLon] = useState("");
-
-  const saveHomeMutation = useMutation({
-    mutationFn: async (data: { lat: number; lon: number; city: string }) => {
-      await apiRequest("POST", "/api/home-location", { ...data, country: "" });
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/home-location"] });
-      setEditingHome(false);
-    },
-  });
-
-  const startEditHome = () => {
-    setEditCity(homeData?.city || "");
-    setEditLat(String(homeData?.lat ?? ""));
-    setEditLon(String(homeData?.lon ?? ""));
-    setEditingHome(true);
-  };
-
-  const saveHome = () => {
-    const lat = parseFloat(editLat);
-    const lon = parseFloat(editLon);
-    if (isNaN(lat) || isNaN(lon)) return;
-    saveHomeMutation.mutate({ lat, lon, city: editCity });
-  };
-
   const homeLat = homeData?.lat ?? 39.8;
   const homeLon = homeData?.lon ?? -98.5;
   const homeLabel = homeData?.city || "Home";
@@ -182,54 +150,10 @@ export function ConnectionMap() {
               </Badge>
             )}
           </div>
-          <div className="flex items-center gap-1">
-            {!editingHome && (
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-6 w-6 p-0 text-muted-foreground hover:text-foreground"
-                onClick={startEditHome}
-                title="Set home location"
-              >
-                <Settings2 className="w-3.5 h-3.5" />
-              </Button>
-            )}
-            <Globe className="w-4 h-4 text-muted-foreground/50" />
-          </div>
+          <Globe className="w-4 h-4 text-muted-foreground/50" />
         </div>
       </CardHeader>
       <CardContent className="px-3 pb-3 pt-0">
-        {/* Home location editor */}
-        {editingHome && (
-          <div className="flex items-center gap-2 mb-2 p-2 rounded-md bg-muted/30 border border-border/50">
-            <MapPin className="w-3.5 h-3.5 text-cyan-400 flex-shrink-0" />
-            <Input
-              value={editCity}
-              onChange={(e) => setEditCity(e.target.value)}
-              placeholder="City name"
-              className="h-6 text-xs bg-muted/50 border-border/50 w-24"
-            />
-            <Input
-              value={editLat}
-              onChange={(e) => setEditLat(e.target.value)}
-              placeholder="Latitude"
-              className="h-6 text-xs bg-muted/50 border-border/50 w-20 font-mono"
-            />
-            <Input
-              value={editLon}
-              onChange={(e) => setEditLon(e.target.value)}
-              placeholder="Longitude"
-              className="h-6 text-xs bg-muted/50 border-border/50 w-20 font-mono"
-            />
-            <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={saveHome}>
-              <Check className="w-3.5 h-3.5 text-emerald-400" />
-            </Button>
-            <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={() => setEditingHome(false)}>
-              <X className="w-3.5 h-3.5 text-muted-foreground" />
-            </Button>
-          </div>
-        )}
-
         <div className="relative rounded-lg overflow-hidden bg-[hsl(215,30%,8%)] border border-border/30">
           <svg
             ref={svgRef}
