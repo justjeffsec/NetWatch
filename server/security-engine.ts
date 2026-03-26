@@ -76,6 +76,29 @@ const SAFE_PORTS = new Set([
 const COOLDOWNS: Record<string, number> = {};
 const DEFAULT_COOLDOWN_MS = 120_000; // 2 minutes between duplicate alerts
 
+/**
+ * Returns true if the IP is a loopback, private, or link-local address
+ * that should never trigger security alerts.
+ */
+function isLocalOrLoopback(ip: string): boolean {
+  if (!ip || ip === "") return true;
+  // IPv4 loopback: 127.0.0.0/8
+  if (ip.startsWith("127.")) return true;
+  // IPv6 loopback
+  if (ip === "::1" || ip === "::" || ip === "0.0.0.0") return true;
+  // IPv4 private ranges
+  if (ip.startsWith("10.")) return true;
+  if (ip.startsWith("192.168.")) return true;
+  if (/^172\.(1[6-9]|2\d|3[01])\./.test(ip)) return true;
+  // IPv4 link-local
+  if (ip.startsWith("169.254.")) return true;
+  // IPv6 link-local (fe80::)
+  if (ip.toLowerCase().startsWith("fe80:")) return true;
+  // IPv6 unique local (fc00::/7)
+  if (/^f[cd]/i.test(ip)) return true;
+  return false;
+}
+
 function shouldAlert(key: string, cooldownMs = DEFAULT_COOLDOWN_MS): boolean {
   const now = Date.now();
   const last = COOLDOWNS[key] || 0;
@@ -141,6 +164,9 @@ export function analyzeConnections(
   const now = Date.now();
 
   for (const conn of conns) {
+    // Skip loopback and local/private IPs entirely — never flag these
+    if (isLocalOrLoopback(conn.remoteAddr)) continue;
+
     // --- 1. New device detection (always runs, even for trusted — just registers) ---
     checkNewDevice(conn, broadcast);
 
@@ -191,8 +217,7 @@ export function analyzeBandwidth(
  */
 function checkNewDevice(conn: Connection, broadcast: (data: any) => void) {
   const ip = conn.remoteAddr;
-  if (!ip || ip === "" || ip === "0.0.0.0" || ip === "::" || ip === "::1" || ip === "127.0.0.1") return;
-  // Skip private/link-local for device tracking (we track remotes)
+  if (isLocalOrLoopback(ip)) return;
   
   const existing = storage.getKnownDeviceByIp(ip);
   if (existing) {
