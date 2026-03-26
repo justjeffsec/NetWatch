@@ -3,6 +3,7 @@ import type { Server } from "http";
 import { WebSocketServer, WebSocket } from "ws";
 import { storage } from "./storage";
 import { insertAlertThresholdSchema } from "@shared/schema";
+import { analyzeConnections, analyzeBandwidth } from "./security-engine";
 
 // Simulated network data generator for demo/development
 // On Windows, the real monitor (netwatch_monitor.py) posts data via REST API
@@ -32,10 +33,15 @@ class NetworkSimulator {
       if (Math.random() < 0.3) {
         const conn = this.generateSingleConnection();
         this.broadcast({ type: "connection", data: conn });
+        // Run security analysis on new connections
+        analyzeConnections([conn], (data) => this.broadcast(data));
       }
 
-      // Check thresholds
+      // Check thresholds + security analysis
       this.checkThresholds(snapshot);
+      const totalIn = (snapshot.ipv4?.rateIn || 0) + (snapshot.ipv6?.rateIn || 0);
+      const totalOut = (snapshot.ipv4?.rateOut || 0) + (snapshot.ipv6?.rateOut || 0);
+      analyzeBandwidth(totalIn, totalOut, (data) => this.broadcast(data));
     }, 2000);
   }
 
@@ -89,7 +95,7 @@ class NetworkSimulator {
 
     for (const r of remotes) {
       const isV6 = r.addr.includes(":");
-      storage.addConnection({
+      const conn = storage.addConnection({
         timestamp: Date.now(),
         protocol: "tcp",
         family: isV6 ? "ipv6" : "ipv4",
@@ -101,6 +107,8 @@ class NetworkSimulator {
         pid: 1000 + Math.floor(Math.random() * 5000),
         process: r.process,
       });
+      // Analyze for security
+      analyzeConnections([conn], (data) => this.broadcast(data));
     }
   }
 
@@ -153,6 +161,8 @@ class NetworkSimulator {
           title: `${t.metric === "bandwidth_in" ? "Inbound" : "Outbound"} traffic spike`,
           message: `Rate of ${formatBytes(value)}/s exceeds threshold of ${formatBytes(t.thresholdValue)}/s`,
           dismissed: 0,
+          sourceIp: null,
+          category: "performance",
         });
         this.broadcast({ type: "alert", data: alert });
       }
@@ -187,6 +197,15 @@ export async function registerRoutes(server: Server, app: Express) {
   // WebSocket server for real-time updates
   const wss = new WebSocketServer({ server, path: "/ws" });
 
+  const broadcast = (data: any) => {
+    const msg = JSON.stringify(data);
+    wss.clients.forEach((client) => {
+      if (client.readyState === WebSocket.OPEN) {
+        client.send(msg);
+      }
+    });
+  };
+
   wss.on("connection", (ws) => {
     // Send initial state on connect
     const bandwidth = storage.getBandwidthSnapshots(Date.now() - 120_000);
@@ -215,11 +234,16 @@ export async function registerRoutes(server: Server, app: Express) {
   app.post("/api/bandwidth", (req, res) => {
     const snapshot = storage.addBandwidthSnapshot(req.body);
     // Broadcast to WebSocket clients
-    wss.clients.forEach((client) => {
-      if (client.readyState === WebSocket.OPEN) {
-        client.send(JSON.stringify({ type: "bandwidth", data: { [req.body.protocol]: snapshot } }));
-      }
-    });
+    broadcast({ type: "bandwidth", data: { [req.body.protocol]: snapshot } });
+
+    // Run security bandwidth analysis
+    const latest = storage.getLatestBandwidth();
+    const ipv4In = latest.filter(s => s.protocol === "ipv4").reduce((sum, s) => sum + s.rateIn, 0) / Math.max(1, latest.filter(s => s.protocol === "ipv4").length);
+    const ipv6In = latest.filter(s => s.protocol === "ipv6").reduce((sum, s) => sum + s.rateIn, 0) / Math.max(1, latest.filter(s => s.protocol === "ipv6").length);
+    const ipv4Out = latest.filter(s => s.protocol === "ipv4").reduce((sum, s) => sum + s.rateOut, 0) / Math.max(1, latest.filter(s => s.protocol === "ipv4").length);
+    const ipv6Out = latest.filter(s => s.protocol === "ipv6").reduce((sum, s) => sum + s.rateOut, 0) / Math.max(1, latest.filter(s => s.protocol === "ipv6").length);
+    analyzeBandwidth(ipv4In + ipv6In, ipv4Out + ipv6Out, broadcast);
+
     res.status(201).json(snapshot);
   });
 
@@ -235,12 +259,27 @@ export async function registerRoutes(server: Server, app: Express) {
 
   app.post("/api/connections", (req, res) => {
     const conn = storage.addConnection(req.body);
-    wss.clients.forEach((client) => {
-      if (client.readyState === WebSocket.OPEN) {
-        client.send(JSON.stringify({ type: "connection", data: conn }));
-      }
-    });
+    broadcast({ type: "connection", data: conn });
+    // Run security analysis on this connection
+    analyzeConnections([conn], broadcast);
     res.status(201).json(conn);
+  });
+
+  // Batch connections endpoint (more efficient for the monitor)
+  app.post("/api/connections/batch", (req, res) => {
+    const items: any[] = req.body;
+    if (!Array.isArray(items)) {
+      res.status(400).json({ error: "Expected array of connections" });
+      return;
+    }
+    const saved = items.map(item => {
+      const conn = storage.addConnection(item);
+      broadcast({ type: "connection", data: conn });
+      return conn;
+    });
+    // Run security analysis on all new connections
+    analyzeConnections(saved, broadcast);
+    res.status(201).json({ count: saved.length });
   });
 
   // Alerts
@@ -275,12 +314,29 @@ export async function registerRoutes(server: Server, app: Express) {
     res.json({ ok: true });
   });
 
+  // Known Devices
+  app.get("/api/devices", (_req, res) => {
+    res.json(storage.getKnownDevices());
+  });
+
+  app.patch("/api/devices/:id/trust", (req, res) => {
+    const trusted = req.body.trusted ?? true;
+    storage.trustDevice(Number(req.params.id), trusted);
+    res.json({ ok: true });
+  });
+
+  app.patch("/api/devices/:id/label", (req, res) => {
+    storage.labelDevice(Number(req.params.id), req.body.label || "");
+    res.json({ ok: true });
+  });
+
   // Stats summary
   app.get("/api/stats", (_req, res) => {
     const latest = storage.getLatestBandwidth();
     const activeConns = storage.getActiveConnections();
     const alertList = storage.getAlerts(10);
     const undismissedAlerts = alertList.filter((a) => !a.dismissed);
+    const devices = storage.getKnownDevices();
 
     const ipv4In = latest.filter(s => s.protocol === "ipv4").reduce((sum, s) => sum + s.rateIn, 0) / Math.max(1, latest.filter(s => s.protocol === "ipv4").length);
     const ipv4Out = latest.filter(s => s.protocol === "ipv4").reduce((sum, s) => sum + s.rateOut, 0) / Math.max(1, latest.filter(s => s.protocol === "ipv4").length);
@@ -296,6 +352,8 @@ export async function registerRoutes(server: Server, app: Express) {
       ipv4Connections: activeConns.filter(c => c.family === "ipv4").length,
       ipv6Connections: activeConns.filter(c => c.family === "ipv6").length,
       undismissedAlerts: undismissedAlerts.length,
+      knownDevices: devices.length,
+      trustedDevices: devices.filter(d => d.trusted).length,
     });
   });
 }

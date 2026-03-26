@@ -494,8 +494,10 @@ class NetWatchMonitor:
                 # Scan connections periodically
                 if now - self.last_conn_scan >= CONN_POLL_INTERVAL:
                     conns = scan_connections()
-                    for conn in conns[:50]:
-                        self.post("/api/connections", conn)
+                    # Use batch endpoint for efficiency
+                    if conns:
+                        batch = conns[:100]  # cap per cycle
+                        self.post("/api/connections/batch", batch)
                     self.last_conn_scan = now
                     log.debug(f"Scanned {len(conns)} connections")
 

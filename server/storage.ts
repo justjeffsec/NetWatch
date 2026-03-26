@@ -1,9 +1,10 @@
 import { 
-  bandwidthSnapshots, connections, alerts, alertThresholds,
+  bandwidthSnapshots, connections, alerts, alertThresholds, knownDevices,
   type InsertBandwidthSnapshot, type BandwidthSnapshot,
   type InsertConnection, type Connection,
   type InsertAlert, type Alert,
   type InsertAlertThreshold, type AlertThreshold,
+  type InsertKnownDevice, type KnownDevice,
 } from "@shared/schema";
 import { drizzle } from "drizzle-orm/better-sqlite3";
 import Database from "better-sqlite3";
@@ -34,6 +35,14 @@ export interface IStorage {
   getThresholds(): AlertThreshold[];
   upsertThreshold(data: InsertAlertThreshold): AlertThreshold;
   deleteThreshold(id: number): void;
+
+  // Known Devices
+  getKnownDevices(): KnownDevice[];
+  getKnownDeviceByIp(ip: string): KnownDevice | undefined;
+  addKnownDevice(data: InsertKnownDevice): KnownDevice;
+  updateDeviceLastSeen(ip: string, timestamp: number): void;
+  trustDevice(id: number, trusted: boolean): void;
+  labelDevice(id: number, label: string): void;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -109,6 +118,45 @@ export class DatabaseStorage implements IStorage {
 
   deleteThreshold(id: number): void {
     db.delete(alertThresholds).where(eq(alertThresholds.id, id)).run();
+  }
+
+  // --- Known Devices ---
+
+  getKnownDevices(): KnownDevice[] {
+    return db.select().from(knownDevices)
+      .orderBy(desc(knownDevices.lastSeen))
+      .all();
+  }
+
+  getKnownDeviceByIp(ip: string): KnownDevice | undefined {
+    return db.select().from(knownDevices)
+      .where(eq(knownDevices.ipAddress, ip))
+      .get();
+  }
+
+  addKnownDevice(data: InsertKnownDevice): KnownDevice {
+    return db.insert(knownDevices).values(data).returning().get();
+  }
+
+  updateDeviceLastSeen(ip: string, timestamp: number): void {
+    db.update(knownDevices)
+      .set({ lastSeen: timestamp })
+      .where(eq(knownDevices.ipAddress, ip))
+      .run();
+  }
+
+  trustDevice(id: number, trusted: boolean): void {
+    db.update(knownDevices)
+      .set({ trusted: trusted ? 1 : 0 })
+      .where(eq(knownDevices.id, id))
+      .run();
+  }
+
+  labelDevice(id: number, label: string): void {
+    db.update(knownDevices)
+      .set({ label })
+      .where(eq(knownDevices.id, id))
+      .run();
   }
 }
 
