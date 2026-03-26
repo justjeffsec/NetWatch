@@ -6,7 +6,7 @@ Wants=network-online.target
 
 [Service]
 Type=simple
-ExecStart=/usr/bin/python3 /opt/netwatch/monitor/netwatch_monitor.py --api-url http://localhost:5000
+ExecStart=/opt/netwatch/monitor/venv/bin/python3 /opt/netwatch/monitor/netwatch_monitor.py --api-url http://localhost:5000
 Restart=on-failure
 RestartSec=10
 StandardOutput=journal

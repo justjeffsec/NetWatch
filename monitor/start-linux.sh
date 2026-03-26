@@ -5,10 +5,12 @@ set -euo pipefail
 #   NetWatch — Quick Start (Linux)
 #   Runs both the dashboard and monitor in
 #   the foreground for development / testing.
+#   Uses a Python venv (PEP 668 compatible).
 # ============================================
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+VENV_DIR="$SCRIPT_DIR/venv"
 
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
@@ -37,9 +39,17 @@ if ! command -v node &>/dev/null; then
     exit 1
 fi
 
-if ! python3 -c "import psutil, requests" 2>/dev/null; then
+# Set up Python venv if needed
+if [[ ! -d "$VENV_DIR" ]]; then
+    echo "Creating Python virtual environment..."
+    python3 -m venv "$VENV_DIR"
+fi
+
+# Install Python deps into venv if missing
+if ! "$VENV_DIR/bin/python3" -c "import psutil, requests" 2>/dev/null; then
     echo "Installing Python dependencies..."
-    pip3 install psutil requests 2>/dev/null || python3 -m pip install psutil requests
+    "$VENV_DIR/bin/pip" install --quiet --upgrade pip 2>/dev/null
+    "$VENV_DIR/bin/pip" install --quiet psutil requests
 fi
 
 # Install Node deps if needed
@@ -73,5 +83,5 @@ echo "Press Ctrl+C to stop."
 echo "--------------------------------------------"
 echo
 
-# Start monitor in foreground
-python3 "$SCRIPT_DIR/netwatch_monitor.py" --verbose
+# Start monitor in foreground using the venv Python
+"$VENV_DIR/bin/python3" "$SCRIPT_DIR/netwatch_monitor.py" --verbose

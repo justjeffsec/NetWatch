@@ -3,9 +3,12 @@ set -euo pipefail
 
 # ============================================
 #   NetWatch — Linux Installation Script
+#   Compatible with PEP 668 (externally-managed)
+#   distros like Kali, Debian 12+, Ubuntu 23.04+
 # ============================================
 
 INSTALL_DIR="/opt/netwatch"
+VENV_DIR="/opt/netwatch/monitor/venv"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 
@@ -33,14 +36,14 @@ echo
 
 # --- Check dependencies ---
 
-echo "[1/6] Checking dependencies..."
+echo "[1/7] Checking dependencies..."
 
 if ! command -v node &>/dev/null; then
     error "Node.js is not installed."
     echo "  Install with your package manager:"
-    echo "    Ubuntu/Debian: sudo apt install nodejs npm"
-    echo "    Fedora/RHEL:   sudo dnf install nodejs npm"
-    echo "    Arch:           sudo pacman -S nodejs npm"
+    echo "    Kali/Debian:  sudo apt install nodejs npm"
+    echo "    Fedora/RHEL:  sudo dnf install nodejs npm"
+    echo "    Arch:          sudo pacman -S nodejs npm"
     echo "  Or use nvm: https://github.com/nvm-sh/nvm"
     exit 1
 fi
@@ -53,23 +56,44 @@ fi
 
 if ! command -v python3 &>/dev/null; then
     error "Python 3 is not installed."
-    echo "  Install with: sudo apt install python3 python3-pip"
+    echo "  Install with: sudo apt install python3 python3-venv"
     exit 1
 fi
 info "Python $(python3 --version 2>&1 | cut -d' ' -f2)"
 
-# --- Install Python deps ---
+# Ensure python3-venv is available (needed on Debian/Kali/Ubuntu)
+if ! python3 -m venv --help &>/dev/null; then
+    warn "python3-venv not found — attempting to install..."
+    if command -v apt &>/dev/null; then
+        apt install -y python3-venv
+    else
+        error "Cannot install python3-venv automatically. Install it manually:"
+        echo "  Debian/Kali/Ubuntu: sudo apt install python3-venv"
+        echo "  Fedora/RHEL:        sudo dnf install python3"
+        exit 1
+    fi
+fi
+
+# --- Create Python virtual environment ---
 
 echo
-echo "[2/6] Installing Python dependencies..."
-pip3 install --quiet psutil requests 2>/dev/null || \
-    python3 -m pip install --quiet psutil requests
+echo "[2/7] Creating Python virtual environment..."
+mkdir -p "$INSTALL_DIR/monitor"
+python3 -m venv "$VENV_DIR"
+info "Virtual environment created at $VENV_DIR"
+
+# --- Install Python deps into venv ---
+
+echo
+echo "[3/7] Installing Python dependencies (in venv)..."
+"$VENV_DIR/bin/pip" install --quiet --upgrade pip 2>/dev/null
+"$VENV_DIR/bin/pip" install --quiet psutil requests
 info "psutil and requests installed"
 
 # --- Create netwatch user ---
 
 echo
-echo "[3/6] Setting up netwatch user..."
+echo "[4/7] Setting up netwatch user..."
 if ! id -u netwatch &>/dev/null; then
     useradd --system --no-create-home --shell /usr/sbin/nologin netwatch
     info "Created system user 'netwatch'"
@@ -80,9 +104,8 @@ fi
 # --- Copy project ---
 
 echo
-echo "[4/6] Installing to $INSTALL_DIR..."
-mkdir -p "$INSTALL_DIR"
-# Copy project files (exclude node_modules, .git, db files)
+echo "[5/7] Installing to $INSTALL_DIR..."
+# Copy project files (exclude node_modules, .git, db files, existing venv)
 rsync -a --delete \
     --exclude='node_modules' \
     --exclude='.git' \
@@ -90,7 +113,15 @@ rsync -a --delete \
     --exclude='*.db-wal' \
     --exclude='*.db-shm' \
     --exclude='dist' \
+    --exclude='monitor/venv' \
     "$PROJECT_DIR/" "$INSTALL_DIR/"
+
+# Move venv back if rsync --delete removed it
+if [[ ! -d "$VENV_DIR" ]]; then
+    python3 -m venv "$VENV_DIR"
+    "$VENV_DIR/bin/pip" install --quiet --upgrade pip 2>/dev/null
+    "$VENV_DIR/bin/pip" install --quiet psutil requests
+fi
 
 # Install Node dependencies and build
 cd "$INSTALL_DIR"
@@ -105,16 +136,16 @@ chown -R netwatch:netwatch "$INSTALL_DIR"
 # --- Install systemd services ---
 
 echo
-echo "[5/6] Installing systemd services..."
-cp "$SCRIPT_DIR/netwatch-dashboard.service" /etc/systemd/system/
-cp "$SCRIPT_DIR/netwatch-monitor.service" /etc/systemd/system/
+echo "[6/7] Installing systemd services..."
+cp "$INSTALL_DIR/monitor/netwatch-dashboard.service" /etc/systemd/system/
+cp "$INSTALL_DIR/monitor/netwatch-monitor.service" /etc/systemd/system/
 systemctl daemon-reload
 info "Systemd units installed"
 
 # --- Enable and start ---
 
 echo
-echo "[6/6] Starting services..."
+echo "[7/7] Starting services..."
 systemctl enable --now netwatch-dashboard.service
 sleep 3
 systemctl enable --now netwatch-monitor.service
@@ -136,8 +167,5 @@ echo "    sudo systemctl restart netwatch-monitor"
 echo "    sudo journalctl -u netwatch-monitor -f     # live logs"
 echo
 echo "  To uninstall:"
-echo "    sudo systemctl disable --now netwatch-dashboard netwatch-monitor"
-echo "    sudo rm /etc/systemd/system/netwatch-*.service"
-echo "    sudo rm -rf $INSTALL_DIR"
-echo "    sudo userdel netwatch"
+echo "    sudo ./monitor/uninstall-linux.sh"
 echo "============================================"

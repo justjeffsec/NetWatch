@@ -35,7 +35,7 @@ rm -f /etc/systemd/system/netwatch-dashboard.service
 rm -f /etc/systemd/system/netwatch-monitor.service
 systemctl daemon-reload
 
-echo "Removing installation directory..."
+echo "Removing installation directory (including Python venv)..."
 rm -rf /opt/netwatch
 
 echo "Removing netwatch user..."
