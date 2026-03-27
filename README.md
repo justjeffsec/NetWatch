@@ -41,12 +41,60 @@ A real-time network traffic monitor for **Windows and Linux** that tracks both I
 
 ## Prerequisites
 
-| Requirement | Windows | Linux |
-|---|---|---|
-| **Node.js** 18+ | [nodejs.org](https://nodejs.org/) | `apt install nodejs npm` / `dnf install nodejs npm` |
-| **Python** 3.9+ | [python.org](https://www.python.org/downloads/) | `apt install python3 python3-pip` |
-| **psutil** | `pip install psutil` | `pip3 install psutil` |
-| **requests** | `pip install requests` | `pip3 install requests` |
+| Requirement | Windows | Linux | Docker |
+|---|---|---|---|
+| **Node.js** 18+ | [nodejs.org](https://nodejs.org/) | `apt install nodejs npm` | Not needed |
+| **Python** 3.9+ | [python.org](https://www.python.org/downloads/) | `apt install python3 python3-pip` | Not needed |
+| **Docker** (optional) | [Docker Desktop](https://docker.com) | `apt install docker.io docker-compose-v2` | Required |
+
+---
+
+## Docker Setup (Recommended)
+
+The easiest way to run NetWatch. Two containers: the dashboard (Node.js) and the monitor (Python).
+
+```bash
+# Clone the repo
+git clone https://github.com/justjeffsec/NetWatch.git
+cd NetWatch
+
+# Build and start both services
+docker compose up -d
+```
+
+Dashboard: **http://localhost:5000**
+
+### Docker Commands
+
+```bash
+# View logs
+docker compose logs -f
+docker compose logs -f monitor    # monitor only
+docker compose logs -f dashboard   # dashboard only
+
+# Stop
+docker compose down
+
+# Rebuild after pulling updates
+git pull
+docker compose up -d --build
+
+# Reset database
+docker compose down -v
+docker compose up -d
+```
+
+### How it works
+
+- The **dashboard** container runs the Node.js server on port 5000
+- The **monitor** container runs with `network_mode: host` so it can see your real network interfaces and connections (not just Docker's virtual network)
+- SQLite data is persisted in a Docker volume (`netwatch-data`)
+- The monitor waits for the dashboard health check to pass before starting
+- Both containers auto-restart on failure
+
+### Docker Requirements
+
+The monitor needs `NET_ADMIN` and `NET_RAW` capabilities (configured in `docker-compose.yml`) and host networking to see real traffic. This is similar to running with `sudo` — it's needed for `psutil` to read `/proc/net` and enumerate connections.
 
 ---
 
@@ -294,11 +342,15 @@ netwatch/
 │   ├── netwatch_service.py          # Windows service wrapper
 │   ├── netwatch-dashboard.service   # Linux systemd unit (dashboard)
 │   ├── netwatch-monitor.service     # Linux systemd unit (monitor)
+│   ├── Dockerfile                   # Monitor container image
 │   ├── install.bat                  # Windows setup script
 │   ├── start.bat                    # Windows quick start
 │   ├── install-linux.sh             # Linux setup script (production)
 │   ├── start-linux.sh               # Linux quick start (development)
 │   ├── uninstall-linux.sh           # Linux uninstall script
 │   └── requirements.txt             # Python dependencies
+├── Dockerfile                       # Dashboard container image
+├── docker-compose.yml               # Docker orchestration
+├── .dockerignore                    # Docker build exclusions
 └── README.md
 ```

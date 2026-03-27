@@ -1,0 +1,54 @@
+# ============================================
+#  NetWatch — Docker Compose
+# ============================================
+#
+#  Quick start:
+#    docker compose up -d
+#
+#  Dashboard: http://localhost:5000
+#
+#  The monitor runs with host networking so it can
+#  see real network traffic on your machine.
+# ============================================
+
+services:
+  dashboard:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: netwatch-dashboard
+    ports:
+      - "5000:5000"
+    volumes:
+      - netwatch-data:/app/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:5000/api/stats"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  monitor:
+    build:
+      context: ./monitor
+      dockerfile: Dockerfile
+    container_name: netwatch-monitor
+    # Host network mode is required so the monitor can see
+    # real network interfaces and connections on the host.
+    network_mode: host
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+    # Override the default CMD to point to the dashboard.
+    # With host networking, localhost:5000 reaches the dashboard
+    # because the dashboard port is published on the host.
+    command: ["--api-url", "http://localhost:5000", "--verbose"]
+    depends_on:
+      dashboard:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  netwatch-data:
+    driver: local
