@@ -26,13 +26,13 @@ FROM node:20-alpine AS production
 
 WORKDIR /app
 
-# better-sqlite3 needs native compilation
-RUN apk add --no-cache python3 make g++ curl \
-    && npm install --no-save better-sqlite3 \
-    || true
+# better-sqlite3 requires native compilation tools
+# curl is kept for the health check
+RUN apk add --no-cache curl python3 make g++
 
 COPY package.json package-lock.json ./
-RUN npm ci --omit=dev && apk del python3 make g++
+RUN npm ci --omit=dev \
+    && apk del python3 make g++
 
 # Copy built server + client from builder
 COPY --from=builder /app/dist ./dist
@@ -49,8 +49,8 @@ ENV PORT=8080
 
 EXPOSE 8080
 
-# Health check using node (always available in this image)
-HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
-  CMD node -e "fetch('http://localhost:8080/api/stats').then(r=>{if(!r.ok)throw r.status;process.exit(0)}).catch(()=>process.exit(1))"
+# Health check using curl (reliable across all platforms)
+HEALTHCHECK --interval=10s --timeout=5s --start-period=20s --retries=5 \
+  CMD curl -sf http://localhost:8080/api/stats || exit 1
 
 CMD ["/app/entrypoint.sh"]
