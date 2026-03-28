@@ -6,6 +6,7 @@
 #    docker compose up -d
 #
 #  Dashboard: http://localhost:8080
+#  (Change the left side of the port mapping below if 8080 is taken)
 #
 #  The monitor runs with host networking so it can
 #  see real network traffic on your machine.
@@ -18,7 +19,7 @@ services:
       dockerfile: Dockerfile
     container_name: netwatch-dashboard
     ports:
-      - "8080:8080"
+      - "${NETWATCH_PORT:-8080}:8080"
     volumes:
       - netwatch-data:/app/data
     restart: unless-stopped
@@ -36,9 +37,9 @@ services:
       - NET_ADMIN
       - NET_RAW
     # Override the default CMD to point to the dashboard.
-    # With host networking, localhost:8080 reaches the dashboard
-    # because the dashboard port is published on the host.
-    command: ["--api-url", "http://localhost:8080", "--verbose"]
+    # With host networking, the monitor reaches the dashboard via
+    # the published port on the host.
+    command: ["--api-url", "http://localhost:${NETWATCH_PORT:-8080}", "--verbose"]
     depends_on:
       dashboard:
         condition: service_healthy
