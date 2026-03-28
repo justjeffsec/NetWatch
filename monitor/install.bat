@@ -51,7 +51,7 @@ echo      cd %~dp0..
 echo      npm run dev
 echo.
 echo   2. Open in browser:
-echo      http://localhost:5000
+echo      http://localhost:8080
 echo.
 echo   3. Start the monitor (new terminal, as Admin):
 echo      cd %~dp0

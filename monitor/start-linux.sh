@@ -61,14 +61,14 @@ if [[ ! -d node_modules ]]; then
 fi
 
 # Start dashboard in background
-echo -e "${GREEN}[1/2]${NC} Starting dashboard on http://localhost:5000 ..."
+echo -e "${GREEN}[1/2]${NC} Starting dashboard on http://localhost:8080 ..."
 npm run dev &
 DASH_PID=$!
 
 # Wait for dashboard
 echo "     Waiting for dashboard to start..."
 for i in $(seq 1 30); do
-    if curl -sf http://localhost:5000 >/dev/null 2>&1; then
+    if curl -sf http://localhost:8080 >/dev/null 2>&1; then
         break
     fi
     sleep 1

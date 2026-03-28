@@ -10,7 +10,7 @@ Linux enhancements:
   - Filters loopback correctly on both platforms (lo vs Loopback).
   - Detects the primary interface via routing table on Linux.
 
-Run with: python netwatch_monitor.py [--api-url http://localhost:5000]
+Run with: python netwatch_monitor.py [--api-url http://localhost:8080]
 Requires: pip install psutil requests
 """
 
@@ -44,7 +44,7 @@ except ImportError:
 # ---------------------------------------------------------------------------
 # Configuration
 # ---------------------------------------------------------------------------
-DEFAULT_API_URL = "http://localhost:5000"
+DEFAULT_API_URL = "http://localhost:8080"
 POLL_INTERVAL = 2        # seconds between bandwidth captures
 CONN_POLL_INTERVAL = 5   # seconds between connection scans
 ALERT_COOLDOWN = 60      # seconds between duplicate alerts

@@ -156,7 +156,7 @@ echo "============================================"
 echo -e "  ${GREEN}NetWatch installation complete!${NC}"
 echo "============================================"
 echo
-echo "  Dashboard:  http://localhost:5000"
+echo "  Dashboard:  http://localhost:8080"
 echo "              (or http://$(hostname -I 2>/dev/null | awk '{print $1}'):5000)"
 echo
 echo "  Service commands:"

@@ -20,4 +20,4 @@ COPY netwatch_monitor.py .
 ENV PYTHONUNBUFFERED=1
 
 ENTRYPOINT ["python3", "netwatch_monitor.py"]
-CMD ["--api-url", "http://dashboard:5000", "--verbose"]
+CMD ["--api-url", "http://dashboard:8080", "--verbose"]

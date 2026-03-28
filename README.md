@@ -8,7 +8,7 @@ A real-time network traffic monitor for **Windows and Linux** that tracks both I
 ┌─────────────────────┐     REST API      ┌──────────────────────┐
 │  netwatch_monitor.py │ ──────────────── │  Node.js Dashboard   │
 │  (Python, psutil)    │   POST /api/*    │  (Express + React)   │
-│                      │                  │  port 5000           │
+│                      │                  │  port 8080           │
 │  Captures:           │     WebSocket    │                      │
 │  - Bandwidth (v4/v6) │ ◄────────────── │  Pushes live data    │
 │  - Connections       │                  │  to all browsers     │
@@ -62,7 +62,7 @@ cd NetWatch
 docker compose up -d
 ```
 
-Dashboard: **http://localhost:5000**
+Dashboard: **http://localhost:8080**
 
 ### Docker Commands
 
@@ -86,7 +86,7 @@ docker compose up -d
 
 ### How it works
 
-- The **dashboard** container runs the Node.js server on port 5000
+- The **dashboard** container runs the Node.js server on port 8080
 - The **monitor** container runs with `network_mode: host` so it can see your real network interfaces and connections (not just Docker's virtual network)
 - SQLite data is persisted in a Docker volume (`netwatch-data`)
 - The monitor waits for the dashboard health check to pass before starting
@@ -118,7 +118,7 @@ pip3 install psutil requests
 sudo ./monitor/start-linux.sh
 ```
 
-The dashboard will be available at **http://localhost:5000**
+The dashboard will be available at **http://localhost:8080**
 
 ### One-Command Install (Production)
 
@@ -195,14 +195,14 @@ To access the dashboard from other devices on your LAN:
 
 ```bash
 # UFW (Ubuntu/Debian)
-sudo ufw allow 5000/tcp comment "NetWatch"
+sudo ufw allow 8080/tcp comment "NetWatch"
 
 # firewalld (Fedora/RHEL)
-sudo firewall-cmd --add-port=5000/tcp --permanent
+sudo firewall-cmd --add-port=8080/tcp --permanent
 sudo firewall-cmd --reload
 
 # iptables
-sudo iptables -A INPUT -p tcp --dport 5000 -j ACCEPT
+sudo iptables -A INPUT -p tcp --dport 8080 -j ACCEPT
 ```
 
 ---
@@ -257,7 +257,7 @@ python netwatch_service.py remove
 ### Firewall (Windows)
 
 ```powershell
-netsh advfirewall firewall add rule name="NetWatch" dir=in action=allow protocol=tcp localport=5000
+netsh advfirewall firewall add rule name="NetWatch" dir=in action=allow protocol=tcp localport=8080
 ```
 
 ---
@@ -317,7 +317,7 @@ The dashboard uses WebSocket to push data to all connected browsers instantly.
 | Issue | Platform | Solution |
 |---|---|---|
 | No connections shown | Both | Run with elevated privileges (sudo / Administrator) |
-| Dashboard won't start | Both | Check port 5000: `ss -tlnp \| grep 5000` or `netstat -an \| findstr 5000` |
+| Dashboard won't start | Both | Check port 8080: `ss -tlnp \| grep 8080` or `netstat -an \| findstr 8080` |
 | Monitor can't connect | Both | Verify dashboard is running, check `--api-url` |
 | Empty IPv6 data on Linux | Linux | Verify `/proc/net/snmp6` exists: `cat /proc/net/snmp6 \| head` |
 | Service won't start | Linux | Check logs: `journalctl -u netwatch-monitor -e` |

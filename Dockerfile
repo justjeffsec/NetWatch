@@ -48,8 +48,8 @@ fi\n\
 exec node dist/index.cjs\n' > /app/entrypoint.sh && chmod +x /app/entrypoint.sh
 
 ENV NODE_ENV=production
-ENV PORT=5000
+ENV PORT=8080
 
-EXPOSE 5000
+EXPOSE 8080
 
 CMD ["/app/entrypoint.sh"]

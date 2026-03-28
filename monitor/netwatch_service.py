@@ -46,7 +46,7 @@ Alternatively, run netwatch_monitor.py directly for manual operation.
 from netwatch_monitor import NetWatchMonitor
 
 # Configuration
-API_URL = os.environ.get("NETWATCH_API_URL", "http://localhost:5000")
+API_URL = os.environ.get("NETWATCH_API_URL", "http://localhost:8080")
 LOG_DIR = os.path.join(os.environ.get("PROGRAMDATA", "C:\\ProgramData"), "NetWatch")
 
 
