@@ -27,7 +27,9 @@ FROM node:20-alpine AS production
 WORKDIR /app
 
 # better-sqlite3 needs native compilation
-RUN apk add --no-cache python3 make g++
+RUN apk add --no-cache python3 make g++ curl \
+    && npm install --no-save better-sqlite3 \
+    || true
 
 COPY package.json package-lock.json ./
 RUN npm ci --omit=dev && apk del python3 make g++
@@ -36,20 +38,19 @@ RUN npm ci --omit=dev && apk del python3 make g++
 COPY --from=builder /app/dist ./dist
 
 # Copy the initialized (empty) database as a template
-# At runtime, if no data.db exists, the entrypoint copies this in
 COPY --from=builder /app/data.db /app/data.db.template
 
-# Entrypoint: use template DB on first run, then start server
-RUN printf '#!/bin/sh\n\
-if [ ! -f data.db ]; then\n\
-  echo "Initializing database from template..."\n\
-  cp data.db.template data.db\n\
-fi\n\
-exec node dist/index.cjs\n' > /app/entrypoint.sh && chmod +x /app/entrypoint.sh
+# Copy entrypoint script
+COPY entrypoint.sh /app/entrypoint.sh
+RUN chmod +x /app/entrypoint.sh
 
 ENV NODE_ENV=production
 ENV PORT=8080
 
 EXPOSE 8080
+
+# Health check using node (always available in this image)
+HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
+  CMD node -e "fetch('http://localhost:8080/api/stats').then(r=>{if(!r.ok)throw r.status;process.exit(0)}).catch(()=>process.exit(1))"
 
 CMD ["/app/entrypoint.sh"]

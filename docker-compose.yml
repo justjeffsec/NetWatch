@@ -22,12 +22,7 @@ services:
     volumes:
       - netwatch-data:/app/data
     restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8080/api/stats"]
-      interval: 30s
-      timeout: 5s
-      retries: 3
-      start_period: 10s
+    # Health check defined in Dockerfile (uses node fetch, not wget)
 
   monitor:
     build:
