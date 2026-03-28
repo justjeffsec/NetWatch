@@ -40,17 +40,22 @@ COPY --from=builder /app/dist ./dist
 # Copy the initialized (empty) database as a template
 COPY --from=builder /app/data.db /app/data.db.template
 
-# Copy entrypoint script
-COPY entrypoint.sh /app/entrypoint.sh
-RUN chmod +x /app/entrypoint.sh
+# Create entrypoint inline to avoid Windows line-ending issues
+RUN echo '#!/bin/sh' > /app/entrypoint.sh \
+    && echo 'if [ ! -f data.db ]; then' >> /app/entrypoint.sh \
+    && echo '  echo "Initializing database from template..."' >> /app/entrypoint.sh \
+    && echo '  cp data.db.template data.db' >> /app/entrypoint.sh \
+    && echo 'fi' >> /app/entrypoint.sh \
+    && echo 'exec node dist/index.cjs' >> /app/entrypoint.sh \
+    && chmod +x /app/entrypoint.sh
 
 ENV NODE_ENV=production
 ENV PORT=8080
 
 EXPOSE 8080
 
-# Health check using curl (reliable across all platforms)
-HEALTHCHECK --interval=10s --timeout=5s --start-period=20s --retries=5 \
+# Health check using curl
+HEALTHCHECK --interval=10s --timeout=5s --start-period=30s --retries=5 \
   CMD curl -sf http://localhost:8080/api/stats || exit 1
 
 CMD ["/app/entrypoint.sh"]
