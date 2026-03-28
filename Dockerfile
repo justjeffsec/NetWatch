@@ -26,7 +26,7 @@ FROM node:20-alpine AS production
 
 WORKDIR /app
 
-# better-sqlite3 needs compilation
+# better-sqlite3 needs native compilation
 RUN apk add --no-cache python3 make g++
 
 COPY package.json package-lock.json ./
@@ -35,16 +35,15 @@ RUN npm ci --omit=dev && apk del python3 make g++
 # Copy built server + client from builder
 COPY --from=builder /app/dist ./dist
 
-# Copy schema + drizzle config for DB initialization at runtime
-COPY --from=builder /app/shared ./shared
-COPY --from=builder /app/drizzle.config.ts ./
-COPY --from=builder /app/node_modules/.drizzle ./node_modules/.drizzle
+# Copy the initialized (empty) database as a template
+# At runtime, if no data.db exists, the entrypoint copies this in
+COPY --from=builder /app/data.db /app/data.db.template
 
-# Entrypoint script to initialize DB on first run
+# Entrypoint: use template DB on first run, then start server
 RUN printf '#!/bin/sh\n\
 if [ ! -f data.db ]; then\n\
-  echo "Initializing database..."\n\
-  npx drizzle-kit push 2>/dev/null || true\n\
+  echo "Initializing database from template..."\n\
+  cp data.db.template data.db\n\
 fi\n\
 exec node dist/index.cjs\n' > /app/entrypoint.sh && chmod +x /app/entrypoint.sh
 
