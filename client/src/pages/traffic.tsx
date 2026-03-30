@@ -9,7 +9,6 @@ import { useLocation } from "wouter";
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell,
-  AreaChart, Area,
   Legend,
 } from "recharts";
 
@@ -130,17 +129,7 @@ export default function TrafficAnalysis() {
                 </div>
               ) : (
                 <ResponsiveContainer width="100%" height={260}>
-                  <AreaChart data={timelineData}>
-                    <defs>
-                      <linearGradient id="gradIn" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#22d3ee" stopOpacity={0.3} />
-                        <stop offset="95%" stopColor="#22d3ee" stopOpacity={0} />
-                      </linearGradient>
-                      <linearGradient id="gradOut" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#a78bfa" stopOpacity={0.3} />
-                        <stop offset="95%" stopColor="#a78bfa" stopOpacity={0} />
-                      </linearGradient>
-                    </defs>
+                  <BarChart data={timelineData} barCategoryGap="15%">
                     <XAxis
                       dataKey="time"
                       tick={{ fontSize: 9, fill: "hsl(215,15%,45%)" }}
@@ -155,28 +144,14 @@ export default function TrafficAnalysis() {
                       tickFormatter={(v) => formatBytes(v)}
                       width={55}
                     />
-                    <Tooltip content={<ChartTooltip />} />
+                    <Tooltip content={<ChartTooltip />} cursor={{ fill: "hsl(215,20%,12%)" }} />
                     <Legend
                       wrapperStyle={{ fontSize: 10, paddingTop: 8 }}
                       iconSize={8}
                     />
-                    <Area
-                      type="monotone"
-                      dataKey="download"
-                      name="Download"
-                      stroke="#22d3ee"
-                      fill="url(#gradIn)"
-                      strokeWidth={1.5}
-                    />
-                    <Area
-                      type="monotone"
-                      dataKey="upload"
-                      name="Upload"
-                      stroke="#a78bfa"
-                      fill="url(#gradOut)"
-                      strokeWidth={1.5}
-                    />
-                  </AreaChart>
+                    <Bar dataKey="download" name="Download" fill="#22d3ee" radius={[3, 3, 0, 0]} />
+                    <Bar dataKey="upload" name="Upload" fill="#a78bfa" radius={[3, 3, 0, 0]} />
+                  </BarChart>
                 </ResponsiveContainer>
               )}
             </CardContent>
