@@ -147,6 +147,7 @@ export function recordFlows(conns: Connection[]): void {
   const bucket = Math.floor(now / 30000) * 30000;
   
   for (const conn of conns) {
+    if (!conn.remoteAddr || conn.remoteAddr === "") continue;
     const service = classifyService(conn.remotePort, conn.process);
     const bytes = estimateBytes(service, conn.status);
     

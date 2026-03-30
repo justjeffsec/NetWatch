@@ -22,11 +22,6 @@ function formatBytes(bytes: number): string {
   return `${(bytes / 1073741824).toFixed(2)} GB`;
 }
 
-function formatRate(bytesPerInterval: number): string {
-  // Convert bytes per 5-min bucket to rate
-  return formatBytes(bytesPerInterval / 300) + "/s";
-}
-
 const COLORS = [
   "#22d3ee", "#34d399", "#a78bfa", "#f59e0b", "#ef4444",
   "#ec4899", "#6366f1", "#14b8a6", "#f97316", "#8b5cf6",

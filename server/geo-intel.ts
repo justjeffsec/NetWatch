@@ -14,6 +14,7 @@ const MAX_CACHE_SIZE = 5000; // Prevent unbounded memory growth
 const GEO_RATE_LIMIT_MS = 1500; // ~40 req/min to stay under ip-api's 45/min limit
 let lastGeoRequest = 0;
 const geoQueue: string[] = [];
+const geoQueueSet = new Set<string>(); // O(1) dedup check
 let geoProcessing = false;
 
 interface GeoResult {
@@ -47,8 +48,9 @@ export function enrichDevice(ip: string): void {
   const device = storage.getKnownDeviceByIp(ip);
   if (device?.country) return; // already enriched
 
-  if (!geoQueue.includes(ip)) {
+  if (!geoQueueSet.has(ip)) {
     geoQueue.push(ip);
+    geoQueueSet.add(ip);
   }
   processGeoQueue();
 }
@@ -59,6 +61,7 @@ async function processGeoQueue(): Promise<void> {
 
   while (geoQueue.length > 0) {
     const ip = geoQueue.shift()!;
+    geoQueueSet.delete(ip);
 
     // Rate limit
     const now = Date.now();

@@ -95,7 +95,7 @@ function isLocalOrLoopback(ip: string): boolean {
   if (ip.startsWith("169.254.")) return true;
   // IPv6 link-local (fe80::)
   if (ip.toLowerCase().startsWith("fe80:")) return true;
-  // IPv6 unique local (fc00::/7)
+  // IPv6 unique local (fc00::/7) — safe for IPv4 since 252-253.x.x.x are reserved
   if (/^f[cd]/i.test(ip)) return true;
   return false;
 }
