@@ -92,3 +92,22 @@ export const knownDevices = sqliteTable("known_devices", {
 export const insertKnownDeviceSchema = createInsertSchema(knownDevices).omit({ id: true });
 export type InsertKnownDevice = z.infer<typeof insertKnownDeviceSchema>;
 export type KnownDevice = typeof knownDevices.$inferSelect;
+
+// Flow records — per-connection traffic tracking for analysis
+export const flowRecords = sqliteTable("flow_records", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  timestamp: integer("timestamp").notNull(),    // unix ms (bucket start)
+  remoteAddr: text("remote_addr").notNull(),
+  remotePort: integer("remote_port").notNull(),
+  protocol: text("protocol").notNull(),           // "tcp" | "udp"
+  family: text("family").notNull(),                // "ipv4" | "ipv6"
+  service: text("service").notNull(),              // classified: "HTTPS", "DNS", "SSH", etc.
+  process: text("process"),                        // process name if known
+  bytesIn: real("bytes_in").notNull().default(0),
+  bytesOut: real("bytes_out").notNull().default(0),
+  connectionCount: integer("connection_count").notNull().default(1),
+});
+
+export const insertFlowRecordSchema = createInsertSchema(flowRecords).omit({ id: true });
+export type InsertFlowRecord = z.infer<typeof insertFlowRecordSchema>;
+export type FlowRecord = typeof flowRecords.$inferSelect;

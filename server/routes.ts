@@ -4,6 +4,7 @@ import { WebSocketServer, WebSocket } from "ws";
 import { storage } from "./storage";
 import { insertAlertThresholdSchema } from "@shared/schema";
 import { analyzeConnections, analyzeBandwidth } from "./security-engine";
+import { recordFlows } from "./flow-analyzer";
 
 /** Filter out loopback/local IPs at the API boundary */
 function isLocalIp(ip: string): boolean {
@@ -41,8 +42,9 @@ class NetworkSimulator {
       if (Math.random() < 0.3) {
         const conn = this.generateSingleConnection();
         this.broadcast({ type: "connection", data: conn });
-        // Run security analysis on new connections
+        // Run security analysis on new connections + record flows
         analyzeConnections([conn], (data) => this.broadcast(data));
+        recordFlows([conn]);
       }
 
       // Check thresholds + security analysis
@@ -115,8 +117,9 @@ class NetworkSimulator {
         pid: 1000 + Math.floor(Math.random() * 5000),
         process: r.process,
       });
-      // Analyze for security
+      // Analyze for security + record flows
       analyzeConnections([conn], (data) => this.broadcast(data));
+      recordFlows([conn]);
     }
   }
 
@@ -286,6 +289,7 @@ export async function registerRoutes(server: Server, app: Express) {
       const conn = storage.addConnection(req.body);
       broadcast({ type: "connection", data: conn });
       analyzeConnections([conn], broadcast);
+      recordFlows([conn]);
       res.status(201).json(conn);
     } catch (err: any) {
       res.status(500).json({ error: err.message || "Internal error" });
@@ -308,6 +312,7 @@ export async function registerRoutes(server: Server, app: Express) {
         return conn;
       });
       analyzeConnections(saved, broadcast);
+      recordFlows(saved);
       res.status(201).json({ count: saved.length });
     } catch (err: any) {
       res.status(500).json({ error: err.message || "Internal error" });
@@ -382,6 +387,154 @@ export async function registerRoutes(server: Server, app: Express) {
 
   app.get("/api/home-location", (_req, res) => {
     res.json(homeLocation || { lat: 39.8, lon: -98.5, city: "Unknown", country: "US" });
+  });
+
+  // --- Flow / Traffic Analysis APIs ---
+
+  app.get("/api/flows/top-talkers", (req, res) => {
+    try {
+      const since = Number(req.query.since) || Date.now() - 3_600_000; // default 1h
+      const limit = Math.min(Number(req.query.limit) || 20, 100);
+      const records = storage.getFlowRecords(since);
+
+      // Aggregate by remote IP
+      const byIp = new Map<string, { bytesIn: number; bytesOut: number; connections: number; lastService: string }>();
+      for (const r of records) {
+        const existing = byIp.get(r.remoteAddr) || { bytesIn: 0, bytesOut: 0, connections: 0, lastService: "" };
+        existing.bytesIn += r.bytesIn;
+        existing.bytesOut += r.bytesOut;
+        existing.connections += r.connectionCount;
+        existing.lastService = r.service;
+        byIp.set(r.remoteAddr, existing);
+      }
+
+      // Enrich with device labels
+      const results = Array.from(byIp.entries())
+        .map(([ip, data]) => {
+          const device = storage.getKnownDeviceByIp(ip);
+          return {
+            ip,
+            label: device?.label || null,
+            country: device?.country || null,
+            org: device?.org || null,
+            ...data,
+            totalBytes: data.bytesIn + data.bytesOut,
+          };
+        })
+        .sort((a, b) => b.totalBytes - a.totalBytes)
+        .slice(0, limit);
+
+      res.json(results);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.get("/api/flows/by-service", (req, res) => {
+    try {
+      const since = Number(req.query.since) || Date.now() - 3_600_000;
+      const records = storage.getFlowRecords(since);
+
+      // Aggregate by service type
+      const byService = new Map<string, { bytesIn: number; bytesOut: number; connections: number }>();
+      for (const r of records) {
+        const existing = byService.get(r.service) || { bytesIn: 0, bytesOut: 0, connections: 0 };
+        existing.bytesIn += r.bytesIn;
+        existing.bytesOut += r.bytesOut;
+        existing.connections += r.connectionCount;
+        byService.set(r.service, existing);
+      }
+
+      const results = Array.from(byService.entries())
+        .map(([service, data]) => ({
+          service,
+          ...data,
+          totalBytes: data.bytesIn + data.bytesOut,
+        }))
+        .sort((a, b) => b.totalBytes - a.totalBytes);
+
+      res.json(results);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.get("/api/flows/by-device", (req, res) => {
+    try {
+      const since = Number(req.query.since) || Date.now() - 3_600_000;
+      const records = storage.getFlowRecords(since);
+
+      // Aggregate by remote IP (same as top talkers but all)
+      const byIp = new Map<string, { bytesIn: number; bytesOut: number; connections: number; services: Set<string> }>();
+      for (const r of records) {
+        const existing = byIp.get(r.remoteAddr) || { bytesIn: 0, bytesOut: 0, connections: 0, services: new Set() };
+        existing.bytesIn += r.bytesIn;
+        existing.bytesOut += r.bytesOut;
+        existing.connections += r.connectionCount;
+        existing.services.add(r.service);
+        byIp.set(r.remoteAddr, existing);
+      }
+
+      const results = Array.from(byIp.entries())
+        .map(([ip, data]) => {
+          const device = storage.getKnownDeviceByIp(ip);
+          return {
+            ip,
+            label: device?.label || null,
+            country: device?.country || null,
+            org: device?.org || null,
+            trusted: device?.trusted || 0,
+            bytesIn: data.bytesIn,
+            bytesOut: data.bytesOut,
+            totalBytes: data.bytesIn + data.bytesOut,
+            connections: data.connections,
+            services: Array.from(data.services),
+          };
+        })
+        .sort((a, b) => b.totalBytes - a.totalBytes);
+
+      res.json(results);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.get("/api/flows/timeline", (req, res) => {
+    try {
+      const since = Number(req.query.since) || Date.now() - 3_600_000;
+      const records = storage.getFlowRecords(since);
+
+      // Aggregate into 5-minute buckets
+      const bucketSize = 5 * 60_000;
+      const buckets = new Map<number, { bytesIn: number; bytesOut: number; connections: number; services: Map<string, number> }>();
+
+      for (const r of records) {
+        const bucket = Math.floor(r.timestamp / bucketSize) * bucketSize;
+        const existing = buckets.get(bucket) || { bytesIn: 0, bytesOut: 0, connections: 0, services: new Map() };
+        existing.bytesIn += r.bytesIn;
+        existing.bytesOut += r.bytesOut;
+        existing.connections += r.connectionCount;
+        existing.services.set(r.service, (existing.services.get(r.service) || 0) + r.bytesIn + r.bytesOut);
+        buckets.set(bucket, existing);
+      }
+
+      const results = Array.from(buckets.entries())
+        .map(([ts, data]) => ({
+          timestamp: ts,
+          bytesIn: data.bytesIn,
+          bytesOut: data.bytesOut,
+          connections: data.connections,
+          topServices: Array.from(data.services.entries())
+            .sort((a, b) => b[1] - a[1])
+            .slice(0, 5)
+            .map(([name, bytes]) => ({ name, bytes })),
+        }))
+        .sort((a, b) => a.timestamp - b.timestamp);
+
+      res.json(results);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
   });
 
   // Stats summary

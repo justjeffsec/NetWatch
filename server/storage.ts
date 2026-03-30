@@ -1,10 +1,11 @@
 import { 
-  bandwidthSnapshots, connections, alerts, alertThresholds, knownDevices,
+  bandwidthSnapshots, connections, alerts, alertThresholds, knownDevices, flowRecords,
   type InsertBandwidthSnapshot, type BandwidthSnapshot,
   type InsertConnection, type Connection,
   type InsertAlert, type Alert,
   type InsertAlertThreshold, type AlertThreshold,
   type InsertKnownDevice, type KnownDevice,
+  type InsertFlowRecord, type FlowRecord,
 } from "@shared/schema";
 import { drizzle } from "drizzle-orm/better-sqlite3";
 import Database from "better-sqlite3";
@@ -53,6 +54,10 @@ export interface IStorage {
     threatLevel: string | null;
     threatSource: string | null;
   }): void;
+
+  // Flow Records
+  addFlowRecord(data: InsertFlowRecord): FlowRecord;
+  getFlowRecords(since: number, limit?: number): FlowRecord[];
 }
 
 export class DatabaseStorage implements IStorage {
@@ -184,6 +189,20 @@ export class DatabaseStorage implements IStorage {
       .where(eq(knownDevices.ipAddress, ip))
       .run();
   }
+
+  // --- Flow Records ---
+
+  addFlowRecord(data: InsertFlowRecord): FlowRecord {
+    return db.insert(flowRecords).values(data).returning().get();
+  }
+
+  getFlowRecords(since: number, limit: number = 10000): FlowRecord[] {
+    return db.select().from(flowRecords)
+      .where(gte(flowRecords.timestamp, since))
+      .orderBy(desc(flowRecords.timestamp))
+      .limit(limit)
+      .all();
+  }
 }
 
 export const storage = new DatabaseStorage();
@@ -205,6 +224,10 @@ setInterval(() => {
     const cutoff7d = Date.now() - 7 * 86_400_000;
     db.delete(alerts)
       .where(and(lte(alerts.timestamp, cutoff7d), eq(alerts.dismissed, 1)))
+      .run();
+    // Keep only 24h of flow records
+    db.delete(flowRecords)
+      .where(lte(flowRecords.timestamp, cutoff24h))
       .run();
   } catch {
     // Cleanup errors are non-fatal

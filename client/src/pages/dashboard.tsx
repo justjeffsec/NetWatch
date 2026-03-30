@@ -13,7 +13,8 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useTheme } from "@/lib/theme";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Wifi, WifiOff, Sun, Moon } from "lucide-react";
+import { Wifi, WifiOff, Sun, Moon, BarChart3 } from "lucide-react";
+import { useLocation } from "wouter";
 import type { BandwidthSnapshot, Connection, Alert } from "@shared/schema";
 
 export default function Dashboard() {
@@ -21,6 +22,7 @@ export default function Dashboard() {
   const [connections, setConnections] = useState<Connection[]>([]);
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const { theme, toggleTheme } = useTheme();
+  const [, navigate] = useLocation();
 
   const { data: stats, refetch: refetchStats } = useQuery({
     queryKey: ["/api/stats"],
@@ -88,6 +90,16 @@ export default function Dashboard() {
           </Badge>
         </div>
         <div className="flex items-center gap-2">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-7 px-2 text-muted-foreground hover:text-foreground"
+            onClick={() => navigate("/traffic")}
+            title="Traffic Analysis"
+          >
+            <BarChart3 className="w-4 h-4 mr-1" />
+            <span className="text-xs hidden sm:inline">Traffic</span>
+          </Button>
           <Button
             variant="ghost"
             size="sm"
