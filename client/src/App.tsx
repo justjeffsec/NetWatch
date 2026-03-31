@@ -7,7 +7,6 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import Dashboard from "@/pages/dashboard";
 import TrafficAnalysis from "@/pages/traffic";
 import NotFound from "@/pages/not-found";
-import { PerplexityAttribution } from "@/components/PerplexityAttribution";
 import { ThemeProvider } from "@/lib/theme";
 
 function AppRouter() {
@@ -48,7 +47,6 @@ export default function App() {
                 <span className="text-[10px] font-mono opacity-30 tracking-widest uppercase">
                   SYS::ACTIVE
                 </span>
-                <PerplexityAttribution />
               </div>
             </footer>
           </div>
