@@ -11,6 +11,8 @@ interface Props {
 const C_AMBER = "hsl(38, 100%, 52%)";
 const C_TEAL  = "hsl(185, 85%, 42%)";
 
+type DonutEntry = { name: string; value: number; fill: string };
+
 const CustomTooltip = ({ active, payload }: any) => {
   if (!active || !payload?.length) return null;
   return (
@@ -21,30 +23,31 @@ const CustomTooltip = ({ active, payload }: any) => {
   );
 };
 
+// Defined outside ProtocolSplit to prevent remount-on-render (React treats inner components as new types each render)
+const DonutChart = ({ data }: { data: DonutEntry[] }) => (
+  <ResponsiveContainer width="100%" height={90}>
+    <PieChart>
+      <Pie data={data} cx="50%" cy="50%" innerRadius={26} outerRadius={40} dataKey="value" strokeWidth={0}>
+        {data.map((entry, i) => <Cell key={i} fill={entry.fill} opacity={0.85} />)}
+      </Pie>
+      <Tooltip content={<CustomTooltip />} />
+    </PieChart>
+  </ResponsiveContainer>
+);
+
 export function ProtocolSplit({ ipv4In, ipv4Out, ipv6In, ipv6Out, ipv4Conns, ipv6Conns }: Props) {
   const totalIn  = ipv4In + ipv6In;
   const totalOut = ipv4Out + ipv6Out;
   const ipv4Pct  = totalIn > 0 ? Math.round(((ipv4In + ipv4Out) / (totalIn + totalOut)) * 100) : 50;
 
-  const bwData = [
-    { name: "IPv4", value: Math.round(ipv4In + ipv4Out), fill: C_AMBER },
-    { name: "IPv6", value: Math.round(ipv6In + ipv6Out), fill: C_TEAL },
+  const bwData: DonutEntry[] = [
+    { name: "IPv4", value: Math.max(1, Math.round(ipv4In + ipv4Out)), fill: C_AMBER },
+    { name: "IPv6", value: Math.max(1, Math.round(ipv6In + ipv6Out)), fill: C_TEAL },
   ];
-  const connData = [
-    { name: "IPv4", value: ipv4Conns || 1, fill: C_AMBER },
-    { name: "IPv6", value: ipv6Conns || 1, fill: C_TEAL },
+  const connData: DonutEntry[] = [
+    { name: "IPv4", value: Math.max(1, ipv4Conns), fill: C_AMBER },
+    { name: "IPv6", value: Math.max(1, ipv6Conns), fill: C_TEAL },
   ];
-
-  const DonutChart = ({ data }: { data: typeof bwData }) => (
-    <ResponsiveContainer width="100%" height={90}>
-      <PieChart>
-        <Pie data={data} cx="50%" cy="50%" innerRadius={26} outerRadius={40} dataKey="value" strokeWidth={0}>
-          {data.map((entry, i) => <Cell key={i} fill={entry.fill} opacity={0.85} />)}
-        </Pie>
-        <Tooltip content={<CustomTooltip />} />
-      </PieChart>
-    </ResponsiveContainer>
-  );
 
   return (
     <Card className="border-card-border">
