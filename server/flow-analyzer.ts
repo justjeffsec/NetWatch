@@ -107,33 +107,34 @@ export function classifyService(remotePort: number, process?: string | null): st
 /**
  * Estimate bytes for a connection based on service type.
  * Since we can't see actual bytes per connection with psutil,
- * we estimate based on connection characteristics.
+ * we use deterministic mid-range estimates based on connection characteristics.
+ * Avoiding Math.random() keeps charts stable across re-renders.
  */
 function estimateBytes(service: string, status: string): { bytesIn: number; bytesOut: number } {
-  // Active connections contribute more traffic
+  // Active connections contribute more traffic; inactive ones are minimal
   const active = status === "ESTABLISHED" ? 1 : 0.1;
-  
-  // Base estimates per 5-second polling interval (rough order of magnitude)
+
+  // Deterministic base estimates per 5-second polling interval (bytes)
   const estimates: Record<string, [number, number]> = {
-    "HTTPS": [15000, 3000],
-    "HTTP": [12000, 2500],
-    "Streaming": [50000, 2000],
-    "Video/Chat": [30000, 25000],
-    "Voice/Chat": [8000, 7000],
-    "Web Browser": [15000, 3000],
-    "Gaming": [5000, 3000],
-    "DNS": [500, 400],
-    "SSH/SFTP": [2000, 2000],
-    "Cloud Sync": [10000, 10000],
-    "P2P/Torrent": [20000, 15000],
-    "VPN": [20000, 15000],
+    "HTTPS":         [15000, 3000],
+    "HTTP":          [12000, 2500],
+    "Streaming":     [50000, 2000],
+    "Video/Chat":    [30000, 25000],
+    "Voice/Chat":    [8000,  7000],
+    "Web Browser":   [15000, 3000],
+    "Gaming":        [5000,  3000],
+    "DNS":           [500,   400],
+    "SSH/SFTP":      [2000,  2000],
+    "Cloud Sync":    [10000, 10000],
+    "P2P/Torrent":   [20000, 15000],
+    "VPN":           [20000, 15000],
     "System Update": [30000, 1000],
   };
-  
-  const [bIn, bOut] = estimates[service] || [2000, 1000];
+
+  const [bIn, bOut] = estimates[service] ?? [2000, 1000];
   return {
-    bytesIn: bIn * active * (0.7 + Math.random() * 0.6),
-    bytesOut: bOut * active * (0.7 + Math.random() * 0.6),
+    bytesIn:  bIn  * active,
+    bytesOut: bOut * active,
   };
 }
 

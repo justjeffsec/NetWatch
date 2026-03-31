@@ -321,14 +321,30 @@ _SKIP_IPS = {
 }
 
 def _is_loopback_or_local(ip: str) -> bool:
-    """Return True for loopback, private (RFC 1918), and link-local IPs."""
+    """
+    Return True for loopback, private (RFC 1918), and link-local IPs.
+    Handles plain IPv4, plain IPv6, and IPv4-mapped IPv6 (::ffff:x.x.x.x)
+    so that addresses like ::ffff:192.168.1.100 are also correctly filtered.
+    """
+    if not ip:
+        return True
     if ip in _SKIP_IPS:
         return True
-    # IPv4 loopback
+
+    # Normalise IPv4-mapped IPv6 (::ffff:x.x.x.x) → plain IPv4 for simpler checks
+    lower = ip.lower()
+    if lower.startswith("::ffff:"):
+        ip = ip[7:]   # strip the ::ffff: prefix, treat remainder as IPv4
+        lower = ip.lower()
+
+    # IPv4 loopback: 127.0.0.0/8
     if ip.startswith("127."):
         return True
-    if ip.startswith("::ffff:127."):
+
+    # IPv6 loopback / unspecified
+    if ip in ("::1", "::", "0.0.0.0"):
         return True
+
     # RFC 1918 private ranges
     if ip.startswith("10."):
         return True
@@ -341,14 +357,19 @@ def _is_loopback_or_local(ip: str) -> bool:
                 return True
         except (ValueError, IndexError):
             pass
-    # Link-local
+
+    # Link-local (IPv4)
     if ip.startswith("169.254."):
         return True
-    # IPv6 link-local / unique local
-    if ip.lower().startswith("fe80:"):
+
+    # IPv6 link-local (fe80::/10)
+    if lower.startswith("fe80:"):
         return True
-    if ip[:2].lower() in ("fc", "fd"):
+
+    # IPv6 unique local (fc00::/7 → fc:: and fd::)
+    if lower[:2] in ("fc", "fd"):
         return True
+
     return False
 
 

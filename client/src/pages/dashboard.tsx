@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { KpiCards } from "@/components/kpi-cards";
 import { BandwidthChart } from "@/components/bandwidth-chart";
@@ -21,7 +21,14 @@ export default function Dashboard() {
   const [bandwidth, setBandwidth] = useState<BandwidthSnapshot[]>([]);
   const [connections, setConnections] = useState<Connection[]>([]);
   const [alerts, setAlerts] = useState<Alert[]>([]);
+  const [clock, setClock] = useState(() => new Date().toLocaleTimeString());
   const { theme, toggleTheme } = useTheme();
+
+  // Tick the clock every second
+  useEffect(() => {
+    const timer = setInterval(() => setClock(new Date().toLocaleTimeString()), 1000);
+    return () => clearInterval(timer);
+  }, []);
   const [, navigate] = useLocation();
 
   const { data: stats, refetch: refetchStats } = useQuery({
@@ -114,7 +121,7 @@ export default function Dashboard() {
             )}
           </Button>
           <span className="text-xs text-muted-foreground font-mono tabular-nums">
-            {new Date().toLocaleTimeString()}
+            {clock}
           </span>
         </div>
       </div>

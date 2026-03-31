@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -12,14 +13,9 @@ import {
   Legend,
 } from "recharts";
 
-// --- Helpers ---
+import { formatBytes } from "@shared/utils";
 
-function formatBytes(bytes: number): string {
-  if (bytes < 1024) return `${bytes.toFixed(0)} B`;
-  if (bytes < 1048576) return `${(bytes / 1024).toFixed(1)} KB`;
-  if (bytes < 1073741824) return `${(bytes / 1048576).toFixed(1)} MB`;
-  return `${(bytes / 1073741824).toFixed(2)} GB`;
-}
+// --- Helpers ---
 
 const COLORS = [
   "#22d3ee", "#34d399", "#a78bfa", "#f59e0b", "#ef4444",
@@ -48,6 +44,13 @@ function ChartTooltip({ active, payload, label }: any) {
 export default function TrafficAnalysis() {
   const { theme, toggleTheme } = useTheme();
   const [, navigate] = useLocation();
+  const [clock, setClock] = useState(() => new Date().toLocaleTimeString());
+
+  // Tick the clock every second
+  useEffect(() => {
+    const timer = setInterval(() => setClock(new Date().toLocaleTimeString()), 1000);
+    return () => clearInterval(timer);
+  }, []);
 
   const { data: topTalkers = [] } = useQuery<any[]>({
     queryKey: ["/api/flows/top-talkers"],
@@ -109,7 +112,7 @@ export default function TrafficAnalysis() {
             {theme === "dark" ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
           </Button>
           <span className="text-xs text-muted-foreground font-mono tabular-nums">
-            {new Date().toLocaleTimeString()}
+            {clock}
           </span>
         </div>
       </div>

@@ -15,6 +15,7 @@
 import { storage } from "./storage";
 import type { InsertAlert, Connection } from "@shared/schema";
 import { enrichDevice } from "./geo-intel";
+import { isLocalIp, formatBytes } from "@shared/utils";
 
 // --- Suspicious port definitions ---
 
@@ -77,28 +78,8 @@ const SAFE_PORTS = new Set([
 const COOLDOWNS: Record<string, number> = {};
 const DEFAULT_COOLDOWN_MS = 120_000; // 2 minutes between duplicate alerts
 
-/**
- * Returns true if the IP is a loopback, private, or link-local address
- * that should never trigger security alerts.
- */
-function isLocalOrLoopback(ip: string): boolean {
-  if (!ip || ip === "") return true;
-  // IPv4 loopback: 127.0.0.0/8
-  if (ip.startsWith("127.")) return true;
-  // IPv6 loopback
-  if (ip === "::1" || ip === "::" || ip === "0.0.0.0") return true;
-  // IPv4 private ranges
-  if (ip.startsWith("10.")) return true;
-  if (ip.startsWith("192.168.")) return true;
-  if (/^172\.(1[6-9]|2\d|3[01])\./.test(ip)) return true;
-  // IPv4 link-local
-  if (ip.startsWith("169.254.")) return true;
-  // IPv6 link-local (fe80::)
-  if (ip.toLowerCase().startsWith("fe80:")) return true;
-  // IPv6 unique local (fc00::/7) — safe for IPv4 since 252-253.x.x.x are reserved
-  if (/^f[cd]/i.test(ip)) return true;
-  return false;
-}
+/** Alias for the shared isLocalIp utility (covers IPv4-mapped IPv6 as well). */
+const isLocalOrLoopback = isLocalIp;
 
 function shouldAlert(key: string, cooldownMs = DEFAULT_COOLDOWN_MS): boolean {
   const now = Date.now();
@@ -311,11 +292,21 @@ function checkSuspiciousPort(conn: Connection, broadcast: (data: any) => void) {
 
 /**
  * 3. PORT SCAN DETECTION
- * Flags a single remote IP that connects to many different local ports in a short window.
+ * Flags a single remote IP that connects to many different LOCAL SERVICE ports
+ * in a short window — a classic inbound reconnaissance pattern.
+ *
+ * Ephemeral local ports (≥ 49152) are intentionally excluded: those are assigned
+ * by the OS for OUTBOUND connections initiated by this machine, not service ports
+ * being probed by a remote. Counting them would cause false positives any time a
+ * browser opens 15+ connections to the same server (e.g. Chrome → Google CDN).
  */
 function checkPortScan(conn: Connection, broadcast: (data: any) => void) {
   const ip = conn.remoteAddr;
   if (!ip) return;
+
+  // Only track well-known / registered service ports (< 49152).
+  // Ephemeral ports are outbound ports chosen by the OS — not scan targets.
+  if (conn.localPort >= 49152) return;
 
   if (!portAccessMap.has(ip)) {
     portAccessMap.set(ip, new Set());
@@ -325,14 +316,14 @@ function checkPortScan(conn: Connection, broadcast: (data: any) => void) {
   const ports = portAccessMap.get(ip)!;
   ports.add(conn.localPort);
 
-  // If a single IP has hit 15+ different local ports in a window, that's suspicious
+  // If a single remote IP has hit 15+ different service ports, that's suspicious
   if (ports.size >= 15 && shouldAlert(`portscan_${ip}`, 300_000)) {
     emitAlert({
       timestamp: Date.now(),
       type: "port_scan",
       severity: "critical",
       title: "Possible port scan detected",
-      message: `${ip} has probed ${ports.size} different local ports — potential reconnaissance activity`,
+      message: `${ip} has probed ${ports.size} different local service ports — potential reconnaissance activity`,
       dismissed: 0,
       sourceIp: ip,
       category: "security",
@@ -488,7 +479,7 @@ function checkExfiltration(rateIn: number, rateOut: number, broadcast: (data: an
   if (avgOut > avgIn * 3 && avgOut > 1_000_000 && shouldAlert("exfiltration", 600_000)) {
     emitAlert({
       timestamp: Date.now(),
-      type: "large_transfer",
+      type: "unusual_outbound",
       severity: "critical",
       title: "Unusual outbound traffic pattern",
       message: `Sustained outbound rate (~${formatBytes(avgOut)}/s) is ${(avgOut / Math.max(avgIn, 1)).toFixed(1)}x higher than inbound (~${formatBytes(avgIn)}/s) — potential data exfiltration`,
@@ -529,11 +520,3 @@ function checkLargeTransfer(rateIn: number, rateOut: number, broadcast: (data: a
 }
 
 
-// --- Helpers ---
-
-function formatBytes(bytes: number): string {
-  if (bytes < 1024) return `${bytes.toFixed(0)} B`;
-  if (bytes < 1048576) return `${(bytes / 1024).toFixed(1)} KB`;
-  if (bytes < 1073741824) return `${(bytes / 1048576).toFixed(1)} MB`;
-  return `${(bytes / 1073741824).toFixed(2)} GB`;
-}

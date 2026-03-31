@@ -44,7 +44,7 @@ export const alerts = sqliteTable("alerts", {
   type: text("type").notNull(),
   // Types: "threshold" | "spike" | "new_device" | "suspicious_port"
   //        "connection_spike" | "port_scan" | "dns_anomaly" | "geo_anomaly"
-  //        "rapid_reconnect" | "unusual_protocol" | "large_transfer"
+  //        "rapid_reconnect" | "unusual_protocol" | "large_transfer" | "unusual_outbound"
   severity: text("severity").notNull(), // "info" | "warning" | "critical"
   title: text("title").notNull(),
   message: text("message").notNull(),
@@ -60,7 +60,7 @@ export type Alert = typeof alerts.$inferSelect;
 // Alert thresholds (user configurable)
 export const alertThresholds = sqliteTable("alert_thresholds", {
   id: integer("id").primaryKey({ autoIncrement: true }),
-  metric: text("metric").notNull(), // "bandwidth_in" | "bandwidth_out" | "connections" | "connections_per_min"
+  metric: text("metric").notNull().unique(), // "bandwidth_in" | "bandwidth_out" | "connections" | "connections_per_min"
   thresholdValue: real("threshold_value").notNull(),
   enabled: integer("enabled").notNull().default(1),
 });

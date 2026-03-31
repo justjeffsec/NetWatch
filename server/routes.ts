@@ -5,25 +5,7 @@ import { storage } from "./storage";
 import { insertAlertThresholdSchema } from "@shared/schema";
 import { analyzeConnections, analyzeBandwidth } from "./security-engine";
 import { recordFlows } from "./flow-analyzer";
-
-/** Filter out loopback, private, and Docker-internal IPs at the API boundary */
-function isLocalIp(ip: string): boolean {
-  if (!ip || ip === "") return true;
-  // Loopback
-  if (ip === "0.0.0.0" || ip === "::" || ip === "::1") return true;
-  if (ip.startsWith("127.")) return true;
-  if (ip.startsWith("::ffff:127.")) return true;
-  // RFC 1918 private ranges
-  if (ip.startsWith("10.")) return true;
-  if (ip.startsWith("192.168.")) return true;
-  if (/^172\.(1[6-9]|2\d|3[01])\./.test(ip)) return true;
-  // Link-local
-  if (ip.startsWith("169.254.")) return true;
-  // IPv6 link-local / unique local
-  if (ip.toLowerCase().startsWith("fe80:")) return true;
-  if (/^f[cd]/i.test(ip)) return true;
-  return false;
-}
+import { formatBytes, isLocalIp } from "@shared/utils";
 
 // Simulated network data generator for demo/development
 // On Windows, the real monitor (netwatch_monitor.py) posts data via REST API
@@ -202,15 +184,15 @@ class NetworkSimulator {
   }
 
   stop() {
-    if (this.interval) clearInterval(this.interval);
+    if (this.interval) {
+      clearInterval(this.interval);
+      this.interval = null;
+    }
   }
-}
 
-function formatBytes(bytes: number): string {
-  if (bytes < 1024) return `${bytes.toFixed(0)} B`;
-  if (bytes < 1048576) return `${(bytes / 1024).toFixed(1)} KB`;
-  if (bytes < 1073741824) return `${(bytes / 1048576).toFixed(1)} MB`;
-  return `${(bytes / 1073741824).toFixed(2)} GB`;
+  get isRunning() {
+    return this.interval !== null;
+  }
 }
 
 const simulator = new NetworkSimulator();
@@ -260,19 +242,34 @@ export async function registerRoutes(server: Server, app: Express) {
         res.status(400).json({ error: "Invalid bandwidth data" });
         return;
       }
-      // Stop simulator once real data flows in
-      simulator.stop();
+      // Stop simulator once real data flows in (only needs to happen once)
+      if (simulator.isRunning) simulator.stop();
 
       const snapshot = storage.addBandwidthSnapshot(body);
       broadcast({ type: "bandwidth", data: { [body.protocol]: snapshot } });
 
-      // Run security bandwidth analysis
+      // Run security bandwidth analysis — single pass over latest snapshots
       const latest = storage.getLatestBandwidth();
-      const ipv4In = latest.filter(s => s.protocol === "ipv4").reduce((sum, s) => sum + s.rateIn, 0) / Math.max(1, latest.filter(s => s.protocol === "ipv4").length);
-      const ipv6In = latest.filter(s => s.protocol === "ipv6").reduce((sum, s) => sum + s.rateIn, 0) / Math.max(1, latest.filter(s => s.protocol === "ipv6").length);
-      const ipv4Out = latest.filter(s => s.protocol === "ipv4").reduce((sum, s) => sum + s.rateOut, 0) / Math.max(1, latest.filter(s => s.protocol === "ipv4").length);
-      const ipv6Out = latest.filter(s => s.protocol === "ipv6").reduce((sum, s) => sum + s.rateOut, 0) / Math.max(1, latest.filter(s => s.protocol === "ipv6").length);
-      analyzeBandwidth(ipv4In + ipv6In, ipv4Out + ipv6Out, broadcast);
+      const { ipv4In, ipv4Out, ipv4Count, ipv6In, ipv6Out, ipv6Count } = latest.reduce(
+        (acc, s) => {
+          if (s.protocol === "ipv4") {
+            acc.ipv4In += s.rateIn;
+            acc.ipv4Out += s.rateOut;
+            acc.ipv4Count++;
+          } else if (s.protocol === "ipv6") {
+            acc.ipv6In += s.rateIn;
+            acc.ipv6Out += s.rateOut;
+            acc.ipv6Count++;
+          }
+          return acc;
+        },
+        { ipv4In: 0, ipv4Out: 0, ipv4Count: 0, ipv6In: 0, ipv6Out: 0, ipv6Count: 0 },
+      );
+      const avgIpv4In = ipv4In / Math.max(1, ipv4Count);
+      const avgIpv4Out = ipv4Out / Math.max(1, ipv4Count);
+      const avgIpv6In = ipv6In / Math.max(1, ipv6Count);
+      const avgIpv6Out = ipv6Out / Math.max(1, ipv6Count);
+      analyzeBandwidth(avgIpv4In + avgIpv6In, avgIpv4Out + avgIpv6Out, broadcast);
 
       res.status(201).json(snapshot);
     } catch (err: any) {
@@ -402,40 +399,57 @@ export async function registerRoutes(server: Server, app: Express) {
 
   // --- Flow / Traffic Analysis APIs ---
 
+  /**
+   * Shared aggregation helper: aggregate flow records by remote IP in a single pass.
+   * Returns a sorted array of per-IP stats enriched with device metadata.
+   */
+  function aggregateFlowsByIp(records: ReturnType<typeof storage.getFlowRecords>) {
+    const byIp = new Map<string, {
+      bytesIn: number;
+      bytesOut: number;
+      connections: number;
+      lastService: string;
+      services: Set<string>;
+    }>();
+
+    for (const r of records) {
+      const existing = byIp.get(r.remoteAddr) ?? {
+        bytesIn: 0, bytesOut: 0, connections: 0, lastService: "", services: new Set<string>(),
+      };
+      existing.bytesIn += r.bytesIn;
+      existing.bytesOut += r.bytesOut;
+      existing.connections += r.connectionCount;
+      existing.lastService = r.service;
+      existing.services.add(r.service);
+      byIp.set(r.remoteAddr, existing);
+    }
+
+    return Array.from(byIp.entries())
+      .map(([ip, data]) => {
+        const device = storage.getKnownDeviceByIp(ip);
+        return {
+          ip,
+          label: device?.label ?? null,
+          country: device?.country ?? null,
+          org: device?.org ?? null,
+          trusted: device?.trusted ?? 0,
+          bytesIn: data.bytesIn,
+          bytesOut: data.bytesOut,
+          totalBytes: data.bytesIn + data.bytesOut,
+          connections: data.connections,
+          lastService: data.lastService,
+          services: Array.from(data.services),
+        };
+      })
+      .sort((a, b) => b.totalBytes - a.totalBytes);
+  }
+
   app.get("/api/flows/top-talkers", (req, res) => {
     try {
-      const since = Number(req.query.since) || Date.now() - 3_600_000; // default 1h
+      const since = Number(req.query.since) || Date.now() - 3_600_000;
       const limit = Math.min(Number(req.query.limit) || 20, 100);
       const records = storage.getFlowRecords(since);
-
-      // Aggregate by remote IP
-      const byIp = new Map<string, { bytesIn: number; bytesOut: number; connections: number; lastService: string }>();
-      for (const r of records) {
-        const existing = byIp.get(r.remoteAddr) || { bytesIn: 0, bytesOut: 0, connections: 0, lastService: "" };
-        existing.bytesIn += r.bytesIn;
-        existing.bytesOut += r.bytesOut;
-        existing.connections += r.connectionCount;
-        existing.lastService = r.service;
-        byIp.set(r.remoteAddr, existing);
-      }
-
-      // Enrich with device labels
-      const results = Array.from(byIp.entries())
-        .map(([ip, data]) => {
-          const device = storage.getKnownDeviceByIp(ip);
-          return {
-            ip,
-            label: device?.label || null,
-            country: device?.country || null,
-            org: device?.org || null,
-            ...data,
-            totalBytes: data.bytesIn + data.bytesOut,
-          };
-        })
-        .sort((a, b) => b.totalBytes - a.totalBytes)
-        .slice(0, limit);
-
-      res.json(results);
+      res.json(aggregateFlowsByIp(records).slice(0, limit));
     } catch (err: any) {
       res.status(500).json({ error: err.message });
     }
@@ -474,37 +488,7 @@ export async function registerRoutes(server: Server, app: Express) {
     try {
       const since = Number(req.query.since) || Date.now() - 3_600_000;
       const records = storage.getFlowRecords(since);
-
-      // Aggregate by remote IP (same as top talkers but all)
-      const byIp = new Map<string, { bytesIn: number; bytesOut: number; connections: number; services: Set<string> }>();
-      for (const r of records) {
-        const existing = byIp.get(r.remoteAddr) || { bytesIn: 0, bytesOut: 0, connections: 0, services: new Set() };
-        existing.bytesIn += r.bytesIn;
-        existing.bytesOut += r.bytesOut;
-        existing.connections += r.connectionCount;
-        existing.services.add(r.service);
-        byIp.set(r.remoteAddr, existing);
-      }
-
-      const results = Array.from(byIp.entries())
-        .map(([ip, data]) => {
-          const device = storage.getKnownDeviceByIp(ip);
-          return {
-            ip,
-            label: device?.label || null,
-            country: device?.country || null,
-            org: device?.org || null,
-            trusted: device?.trusted || 0,
-            bytesIn: data.bytesIn,
-            bytesOut: data.bytesOut,
-            totalBytes: data.bytesIn + data.bytesOut,
-            connections: data.connections,
-            services: Array.from(data.services),
-          };
-        })
-        .sort((a, b) => b.totalBytes - a.totalBytes);
-
-      res.json(results);
+      res.json(aggregateFlowsByIp(records));
     } catch (err: any) {
       res.status(500).json({ error: err.message });
     }
@@ -553,13 +537,40 @@ export async function registerRoutes(server: Server, app: Express) {
     const latest = storage.getLatestBandwidth();
     const activeConns = storage.getActiveConnections();
     const alertList = storage.getAlerts(10);
-    const undismissedAlerts = alertList.filter((a) => !a.dismissed);
     const devices = storage.getKnownDevices();
 
-    const ipv4In = latest.filter(s => s.protocol === "ipv4").reduce((sum, s) => sum + s.rateIn, 0) / Math.max(1, latest.filter(s => s.protocol === "ipv4").length);
-    const ipv4Out = latest.filter(s => s.protocol === "ipv4").reduce((sum, s) => sum + s.rateOut, 0) / Math.max(1, latest.filter(s => s.protocol === "ipv4").length);
-    const ipv6In = latest.filter(s => s.protocol === "ipv6").reduce((sum, s) => sum + s.rateIn, 0) / Math.max(1, latest.filter(s => s.protocol === "ipv6").length);
-    const ipv6Out = latest.filter(s => s.protocol === "ipv6").reduce((sum, s) => sum + s.rateOut, 0) / Math.max(1, latest.filter(s => s.protocol === "ipv6").length);
+    // Single pass over latest bandwidth snapshots
+    const bw = latest.reduce(
+      (acc, s) => {
+        if (s.protocol === "ipv4") {
+          acc.ipv4In += s.rateIn;
+          acc.ipv4Out += s.rateOut;
+          acc.ipv4Count++;
+        } else if (s.protocol === "ipv6") {
+          acc.ipv6In += s.rateIn;
+          acc.ipv6Out += s.rateOut;
+          acc.ipv6Count++;
+        }
+        return acc;
+      },
+      { ipv4In: 0, ipv4Out: 0, ipv4Count: 0, ipv6In: 0, ipv6Out: 0, ipv6Count: 0 },
+    );
+    const ipv4In  = bw.ipv4In  / Math.max(1, bw.ipv4Count);
+    const ipv4Out = bw.ipv4Out / Math.max(1, bw.ipv4Count);
+    const ipv6In  = bw.ipv6In  / Math.max(1, bw.ipv6Count);
+    const ipv6Out = bw.ipv6Out / Math.max(1, bw.ipv6Count);
+
+    // Single pass over active connections
+    let ipv4Conns = 0;
+    let ipv6Conns = 0;
+    for (const c of activeConns) {
+      if (c.family === "ipv4") ipv4Conns++;
+      else if (c.family === "ipv6") ipv6Conns++;
+    }
+
+    // Single pass over alerts and devices
+    const undismissedAlerts = alertList.filter((a) => !a.dismissed).length;
+    const trustedDevices = devices.filter((d) => d.trusted).length;
 
     res.json({
       totalRateIn: ipv4In + ipv6In,
@@ -567,11 +578,11 @@ export async function registerRoutes(server: Server, app: Express) {
       ipv4: { rateIn: ipv4In, rateOut: ipv4Out },
       ipv6: { rateIn: ipv6In, rateOut: ipv6Out },
       activeConnections: activeConns.length,
-      ipv4Connections: activeConns.filter(c => c.family === "ipv4").length,
-      ipv6Connections: activeConns.filter(c => c.family === "ipv6").length,
-      undismissedAlerts: undismissedAlerts.length,
+      ipv4Connections: ipv4Conns,
+      ipv6Connections: ipv6Conns,
+      undismissedAlerts,
       knownDevices: devices.length,
-      trustedDevices: devices.filter(d => d.trusted).length,
+      trustedDevices,
     });
   });
 }

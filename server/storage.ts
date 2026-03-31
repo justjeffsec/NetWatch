@@ -9,7 +9,7 @@ import {
 } from "@shared/schema";
 import { drizzle } from "drizzle-orm/better-sqlite3";
 import Database from "better-sqlite3";
-import { eq, desc, gte, lte, and } from "drizzle-orm";
+import { eq, desc, gte, lte, and, sql } from "drizzle-orm";
 
 const sqlite = new Database("data.db");
 sqlite.pragma("journal_mode = WAL");
@@ -128,7 +128,17 @@ export class DatabaseStorage implements IStorage {
   }
 
   upsertThreshold(data: InsertAlertThreshold): AlertThreshold {
-    return db.insert(alertThresholds).values(data).returning().get();
+    return db.insert(alertThresholds)
+      .values(data)
+      .onConflictDoUpdate({
+        target: alertThresholds.metric,
+        set: {
+          thresholdValue: sql`excluded.threshold_value`,
+          enabled: sql`excluded.enabled`,
+        },
+      })
+      .returning()
+      .get();
   }
 
   deleteThreshold(id: number): void {
