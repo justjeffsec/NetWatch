@@ -2,32 +2,19 @@ import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Input } from "@/components/ui/input";
 import {
-  Shield,
-  ShieldCheck,
-  ShieldAlert,
-  ShieldBan,
-  Monitor,
-  Pencil,
-  Check,
-  X,
-  Search,
-  Globe,
-  MapPin,
+  Shield, ShieldCheck, ShieldAlert, ShieldBan,
+  Monitor, Pencil, Check, X, Search, Globe, MapPin,
 } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import type { KnownDevice } from "@shared/schema";
 
-/** Country code → emoji flag */
 function countryFlag(code: string | null): string {
   if (!code || code.length !== 2) return "";
   const offset = 127397;
-  return String.fromCodePoint(
-    ...code.toUpperCase().split("").map((c) => c.charCodeAt(0) + offset)
-  );
+  return String.fromCodePoint(...code.toUpperCase().split("").map((c) => c.charCodeAt(0) + offset));
 }
 
 function timeAgo(ts: number): string {
@@ -38,29 +25,14 @@ function timeAgo(ts: number): string {
   return `${Math.floor(diff / 86_400_000)}d ago`;
 }
 
-function threatBadgeClass(level: string | null): string {
+const threatStyle = (level: string | null) => {
   switch (level) {
-    case "malicious":
-      return "bg-red-500/15 text-red-400 border-red-500/20";
-    case "suspicious":
-      return "bg-amber-500/15 text-amber-400 border-amber-500/20";
-    case "safe":
-      return "bg-emerald-500/10 text-emerald-400/70 border-emerald-500/15";
-    default:
-      return "bg-slate-500/10 text-slate-400/50 border-slate-500/15";
+    case "malicious":  return { borderColor: "rgba(255,60,60,0.4)",  background: "rgba(255,40,40,0.1)",  color: "#ff7070" };
+    case "suspicious": return { borderColor: "rgba(255,154,0,0.4)",  background: "rgba(255,154,0,0.1)", color: "hsl(38 100% 60%)" };
+    case "safe":       return { borderColor: "rgba(0,210,120,0.3)",  background: "rgba(0,210,120,0.07)", color: "#4ade80" };
+    default:           return { borderColor: "rgba(255,154,0,0.15)", background: "transparent",          color: "hsl(38 35% 45%)" };
   }
-}
-
-function threatIcon(level: string | null) {
-  switch (level) {
-    case "malicious":
-      return <ShieldBan className="w-4 h-4 text-red-400" />;
-    case "suspicious":
-      return <ShieldAlert className="w-4 h-4 text-amber-400" />;
-    default:
-      return null;
-  }
-}
+};
 
 export function DevicesPanel() {
   const [filter, setFilter] = useState("");
@@ -76,19 +48,14 @@ export function DevicesPanel() {
     mutationFn: async ({ id, trusted }: { id: number; trusted: boolean }) => {
       await apiRequest("PATCH", `/api/devices/${id}/trust`, { trusted });
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/devices"] });
-    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["/api/devices"] }),
   });
 
   const labelMutation = useMutation({
     mutationFn: async ({ id, label }: { id: number; label: string }) => {
       await apiRequest("PATCH", `/api/devices/${id}/label`, { label });
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/devices"] });
-      setEditingId(null);
-    },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["/api/devices"] }); setEditingId(null); },
   });
 
   const filtered = devices.filter((d) => {
@@ -104,169 +71,151 @@ export function DevicesPanel() {
     );
   });
 
-  const trustedCount = devices.filter((d) => d.trusted).length;
+  const trustedCount   = devices.filter((d) => d.trusted).length;
   const untrustedCount = devices.length - trustedCount;
   const maliciousCount = devices.filter((d) => d.threatLevel === "malicious").length;
 
-  const startEdit = (device: KnownDevice) => {
-    setEditingId(device.id);
-    setEditLabel(device.label || "");
-  };
-
-  const saveLabel = (id: number) => {
-    labelMutation.mutate({ id, label: editLabel });
-  };
+  const startEdit = (device: KnownDevice) => { setEditingId(device.id); setEditLabel(device.label || ""); };
+  const saveLabel = (id: number) => labelMutation.mutate({ id, label: editLabel });
 
   return (
     <Card className="border-card-border">
-      <CardHeader className="pb-2 pt-4 px-4">
-        <div className="flex items-center justify-between">
+      <CardHeader className="pb-2 pt-3 px-4">
+        <div className="flex items-center justify-between flex-wrap gap-2">
           <div className="flex items-center gap-2 flex-wrap">
-            <CardTitle className="text-sm font-medium">Known Devices</CardTitle>
-            <Badge
-              variant="outline"
-              className="text-[10px] px-1.5 py-0 bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
-            >
+            <div className="w-1 h-4 rounded-sm"
+              style={{ background: maliciousCount > 0 ? "#ff4040" : "hsl(270 65% 60%)", boxShadow: maliciousCount > 0 ? "0 0 6px rgba(255,40,40,0.7)" : "0 0 6px rgba(150,80,230,0.5)" }} />
+            <CardTitle className="text-[11px] font-mono tracking-widest uppercase opacity-80">Known Devices</CardTitle>
+
+            <span className="border text-[9px] px-1.5 py-0.5 font-mono tracking-widest"
+              style={{ borderRadius:"2px", borderColor:"rgba(0,210,120,0.3)", background:"rgba(0,210,120,0.07)", color:"#4ade80" }}>
               {trustedCount} trusted
-            </Badge>
+            </span>
             {untrustedCount > 0 && (
-              <Badge
-                variant="outline"
-                className="text-[10px] px-1.5 py-0 bg-amber-500/10 text-amber-400 border-amber-500/20"
-              >
+              <span className="border text-[9px] px-1.5 py-0.5 font-mono tracking-widest"
+                style={{ borderRadius:"2px", borderColor:"rgba(255,154,0,0.3)", background:"rgba(255,154,0,0.08)", color:"hsl(38 100% 60%)" }}>
                 {untrustedCount} new
-              </Badge>
+              </span>
             )}
             {maliciousCount > 0 && (
-              <Badge
-                variant="outline"
-                className="text-[10px] px-1.5 py-0 bg-red-500/15 text-red-400 border-red-500/20 animate-pulse"
-              >
+              <span className="border text-[9px] px-1.5 py-0.5 font-mono tracking-widest animate-red-pulse"
+                style={{ borderRadius:"2px", borderColor:"rgba(255,40,40,0.4)", background:"rgba(255,40,40,0.12)", color:"#ff6060" }}>
                 {maliciousCount} threats
-              </Badge>
+              </span>
             )}
           </div>
-          <span className="text-[10px] text-muted-foreground font-mono">
-            {devices.length} total
-          </span>
+          <span className="text-[10px] font-mono opacity-40">{devices.length} total</span>
         </div>
       </CardHeader>
+
       <CardContent className="px-4 pb-2 pt-1">
         <div className="relative mb-2">
-          <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-muted-foreground" />
+          <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3" style={{ color: "hsl(38 40% 40%)" }} />
           <Input
             value={filter}
             onChange={(e) => setFilter(e.target.value)}
-            placeholder="Filter by IP, label, country, or org..."
-            className="h-7 pl-7 text-xs bg-muted/30 border-border/50"
+            placeholder="Filter devices..."
+            className="h-7 pl-7 text-[11px] font-mono"
           />
         </div>
       </CardContent>
+
       <CardContent className="px-0 pb-0 pt-0">
-        <ScrollArea className="h-[300px]">
+        <ScrollArea className="h-[270px]">
           {filtered.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-10 text-muted-foreground">
-              <Monitor className="w-8 h-8 mb-2 opacity-50" />
-              <p className="text-sm">
-                {devices.length === 0
-                  ? "No devices detected yet"
-                  : "No matching devices"}
+            <div className="flex flex-col items-center justify-center py-10" style={{ color: "hsl(38 30% 38%)" }}>
+              <Monitor className="w-7 h-7 mb-2 opacity-30" />
+              <p className="text-[11px] font-mono tracking-widest uppercase">
+                {devices.length === 0 ? "// No devices detected" : "// No matches"}
               </p>
             </div>
           ) : (
-            <div className="space-y-0">
+            <div>
               {filtered.map((device) => (
-                <div
-                  key={device.id}
-                  className={`flex items-center gap-3 px-4 py-2.5 border-b border-border/50 hover:bg-muted/30 transition-colors group ${
-                    device.threatLevel === "malicious"
-                      ? "bg-red-500/[0.04]"
+                <div key={device.id}
+                  className="flex items-center gap-3 px-4 py-2.5 border-b group transition-all"
+                  style={{
+                    borderBottomColor: "rgba(255,154,0,0.07)",
+                    borderLeft: device.threatLevel === "malicious"
+                      ? "2px solid rgba(255,60,60,0.5)"
                       : device.trusted
-                        ? "bg-emerald-500/[0.02]"
-                        : ""
-                  }`}
-                >
-                  {/* Trust/threat icon */}
+                        ? "2px solid rgba(0,210,120,0.3)"
+                        : "2px solid transparent",
+                    background: device.threatLevel === "malicious" ? "rgba(255,30,30,0.04)" : "transparent",
+                  }}>
+
+                  {/* Icon */}
                   <div className="flex-shrink-0">
-                    {threatIcon(device.threatLevel) || (
-                      device.trusted ? (
-                        <ShieldCheck className="w-4 h-4 text-emerald-400" />
-                      ) : (
-                        <ShieldAlert className="w-4 h-4 text-amber-400/70" />
-                      )
-                    )}
+                    {device.threatLevel === "malicious"
+                      ? <ShieldBan className="w-4 h-4" style={{ color: "#ff4040", filter: "drop-shadow(0 0 4px rgba(255,40,40,0.8))" }} />
+                      : device.threatLevel === "suspicious"
+                        ? <ShieldAlert className="w-4 h-4" style={{ color: "hsl(38 100% 55%)", filter: "drop-shadow(0 0 3px rgba(255,154,0,0.7))" }} />
+                        : device.trusted
+                          ? <ShieldCheck className="w-4 h-4" style={{ color: "#4ade80" }} />
+                          : <ShieldAlert className="w-4 h-4" style={{ color: "hsl(38 50% 45%)" }} />
+                    }
                   </div>
 
-                  {/* Device info */}
+                  {/* Info */}
                   <div className="flex-1 min-w-0">
                     {editingId === device.id ? (
                       <div className="flex items-center gap-1">
-                        <Input
-                          value={editLabel}
-                          onChange={(e) => setEditLabel(e.target.value)}
-                          placeholder="Device label..."
-                          className="h-6 text-xs bg-muted/50 border-border/50 flex-1"
-                          onKeyDown={(e) => {
-                            if (e.key === "Enter") saveLabel(device.id);
-                            if (e.key === "Escape") setEditingId(null);
-                          }}
-                          autoFocus
-                        />
+                        <Input value={editLabel} onChange={(e) => setEditLabel(e.target.value)}
+                          placeholder="Device label..." className="h-6 text-[11px] flex-1"
+                          onKeyDown={(e) => { if (e.key === "Enter") saveLabel(device.id); if (e.key === "Escape") setEditingId(null); }}
+                          autoFocus />
                         <Button variant="ghost" size="sm" className="h-5 w-5 p-0" onClick={() => saveLabel(device.id)}>
-                          <Check className="w-3 h-3 text-emerald-400" />
+                          <Check className="w-3 h-3" style={{ color: "#4ade80" }} />
                         </Button>
                         <Button variant="ghost" size="sm" className="h-5 w-5 p-0" onClick={() => setEditingId(null)}>
-                          <X className="w-3 h-3 text-muted-foreground" />
+                          <X className="w-3 h-3" style={{ color: "hsl(38 40% 45%)" }} />
                         </Button>
                       </div>
                     ) : (
                       <>
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span className="text-xs font-mono truncate">{device.ipAddress}</span>
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="text-[11px] font-mono" style={{ color: "hsl(38 80% 65%)" }}>
+                            {device.ipAddress}
+                          </span>
                           {device.label && (
-                            <Badge variant="outline" className="text-[9px] px-1 py-0 bg-sky-500/10 text-sky-400 border-sky-500/15">
+                            <span className="border text-[9px] px-1 py-0 font-mono"
+                              style={{ borderRadius:"2px", borderColor:"rgba(0,210,220,0.3)", background:"rgba(0,210,220,0.07)", color:"hsl(185 80% 55%)" }}>
                               {device.label}
-                            </Badge>
+                            </span>
                           )}
                           {device.country && (
-                            <span className="text-[10px]" title={`${device.countryName || device.country}`}>
+                            <span className="text-[10px]" title={device.countryName || device.country}>
                               {countryFlag(device.country)}
                             </span>
                           )}
                           {device.threatLevel && device.threatLevel !== "safe" && (
-                            <Badge variant="outline" className={`text-[9px] px-1 py-0 ${threatBadgeClass(device.threatLevel)}`}>
-                              {device.threatLevel}
-                            </Badge>
+                            <span className="border text-[9px] px-1 py-0 font-mono tracking-widest"
+                              style={{ ...threatStyle(device.threatLevel), borderRadius:"2px" }}>
+                              {device.threatLevel.toUpperCase()}
+                            </span>
                           )}
-                          <button
-                            className="opacity-0 group-hover:opacity-100 transition-opacity"
-                            onClick={() => startEdit(device)}
-                          >
-                            <Pencil className="w-2.5 h-2.5 text-muted-foreground hover:text-foreground" />
+                          <button className="opacity-0 group-hover:opacity-100 transition-opacity"
+                            onClick={() => startEdit(device)}>
+                            <Pencil className="w-2.5 h-2.5" style={{ color: "hsl(38 40% 45%)" }} />
                           </button>
                         </div>
                         <div className="flex items-center gap-3 mt-0.5">
                           {(device.city || device.countryName) && (
-                            <span className="flex items-center gap-0.5 text-[10px] text-muted-foreground/60">
+                            <span className="flex items-center gap-0.5 text-[9px] font-mono opacity-50">
                               <MapPin className="w-2.5 h-2.5" />
                               {[device.city, device.countryName].filter(Boolean).join(", ")}
                             </span>
                           )}
                           {device.org && (
-                            <span className="flex items-center gap-0.5 text-[10px] text-muted-foreground/60">
+                            <span className="flex items-center gap-0.5 text-[9px] font-mono opacity-50">
                               <Globe className="w-2.5 h-2.5" />
                               {device.org}
                             </span>
                           )}
                           {!device.city && !device.org && (
-                            <>
-                              <span className="text-[10px] text-muted-foreground/60 font-mono">
-                                first: {timeAgo(device.firstSeen)}
-                              </span>
-                              <span className="text-[10px] text-muted-foreground/60 font-mono">
-                                last: {timeAgo(device.lastSeen)}
-                              </span>
-                            </>
+                            <span className="text-[9px] font-mono opacity-40">
+                              last: {timeAgo(device.lastSeen)}
+                            </span>
                           )}
                         </div>
                       </>
@@ -274,27 +223,15 @@ export function DevicesPanel() {
                   </div>
 
                   {/* Trust toggle */}
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className={`h-6 text-[10px] px-2 ${
-                      device.trusted
-                        ? "text-emerald-400 hover:text-red-400"
-                        : "text-muted-foreground hover:text-emerald-400"
-                    }`}
-                    onClick={() =>
-                      trustMutation.mutate({
-                        id: device.id,
-                        trusted: !device.trusted,
-                      })
+                  <Button variant="ghost" size="sm"
+                    className="h-6 text-[10px] px-2 font-mono tracking-widest uppercase flex-shrink-0"
+                    style={{ color: device.trusted ? "#4ade80" : "hsl(38 35% 45%)" }}
+                    onClick={() => trustMutation.mutate({ id: device.id, trusted: !device.trusted })}
+                    disabled={trustMutation.isPending}>
+                    {device.trusted
+                      ? <><Shield className="w-3 h-3 mr-1" />Trust</>
+                      : <><ShieldCheck className="w-3 h-3 mr-1" />Trust</>
                     }
-                    disabled={trustMutation.isPending}
-                  >
-                    {device.trusted ? (
-                      <><Shield className="w-3 h-3 mr-1" />Trusted</>
-                    ) : (
-                      <><ShieldCheck className="w-3 h-3 mr-1" />Trust</>
-                    )}
                   </Button>
                 </div>
               ))}

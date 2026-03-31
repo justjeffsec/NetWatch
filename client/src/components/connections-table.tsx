@@ -1,5 +1,4 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -8,9 +7,7 @@ import { useState, useMemo } from "react";
 import { formatTimestamp } from "@/lib/format";
 import type { Connection } from "@shared/schema";
 
-interface Props {
-  connections: Connection[];
-}
+interface Props { connections: Connection[]; }
 
 export function ConnectionsTable({ connections }: Props) {
   const [search, setSearch] = useState("");
@@ -33,31 +30,40 @@ export function ConnectionsTable({ connections }: Props) {
     });
   }, [connections, search, familyFilter, statusFilter]);
 
-  const statusColor = (s: string) => {
+  const statusStyle = (s: string) => {
     switch (s) {
-      case "ESTABLISHED": return "bg-emerald-500/15 text-emerald-400 border-emerald-500/20";
-      case "TIME_WAIT": return "bg-amber-500/15 text-amber-400 border-amber-500/20";
-      case "CLOSE_WAIT": return "bg-red-500/15 text-red-400 border-red-500/20";
-      case "LISTEN": return "bg-sky-500/15 text-sky-400 border-sky-500/20";
-      default: return "bg-muted text-muted-foreground";
+      case "ESTABLISHED": return { borderColor: "rgba(0,210,220,0.35)", background: "rgba(0,210,220,0.08)", color: "hsl(185 85% 55%)" };
+      case "TIME_WAIT":   return { borderColor: "rgba(255,154,0,0.35)", background: "rgba(255,154,0,0.08)", color: "hsl(38 100% 60%)" };
+      case "CLOSE_WAIT":  return { borderColor: "rgba(255,60,60,0.35)",  background: "rgba(255,60,60,0.08)",  color: "#ff7070" };
+      case "LISTEN":      return { borderColor: "rgba(150,80,230,0.35)", background: "rgba(150,80,230,0.08)", color: "#c090ff" };
+      default:            return { borderColor: "rgba(255,154,0,0.15)", background: "transparent",            color: "hsl(38 35% 45%)" };
     }
   };
 
+  const familyStyle = (f: string) => f === "ipv6"
+    ? { borderColor: "rgba(150,80,230,0.3)", background: "rgba(150,80,230,0.07)", color: "#c090ff" }
+    : { borderColor: "rgba(0,210,220,0.3)",  background: "rgba(0,210,220,0.07)",  color: "hsl(185 80% 55%)" };
+
   return (
     <Card className="border-card-border">
-      <CardHeader className="pb-2 pt-4 px-4">
+      <CardHeader className="pb-2 pt-3 px-4">
         <div className="flex items-center justify-between gap-3 flex-wrap">
-          <CardTitle className="text-sm font-medium">Connections</CardTitle>
+          <div className="flex items-center gap-2">
+            <div className="w-1 h-4 rounded-sm" style={{ background: "hsl(185 85% 40%)", boxShadow: "0 0 6px rgba(0,210,220,0.5)" }} />
+            <CardTitle className="text-[11px] font-mono tracking-widest uppercase opacity-80">
+              Connections
+            </CardTitle>
+          </div>
           <div className="flex items-center gap-2">
             <Input
               placeholder="Filter by IP or process..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="h-7 w-48 text-xs font-mono"
+              className="h-7 w-44 text-[11px] font-mono"
               data-testid="input-connection-search"
             />
             <Select value={familyFilter} onValueChange={setFamilyFilter}>
-              <SelectTrigger className="h-7 w-24 text-xs" data-testid="select-family-filter">
+              <SelectTrigger className="h-7 w-20 text-[11px] font-mono" data-testid="select-family-filter">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -67,7 +73,7 @@ export function ConnectionsTable({ connections }: Props) {
               </SelectContent>
             </Select>
             <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="h-7 w-32 text-xs" data-testid="select-status-filter">
+              <SelectTrigger className="h-7 w-32 text-[11px] font-mono" data-testid="select-status-filter">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -82,51 +88,80 @@ export function ConnectionsTable({ connections }: Props) {
         </div>
       </CardHeader>
       <CardContent className="px-0 pb-0">
-        <ScrollArea className="h-[320px]">
+        <ScrollArea className="h-[300px]">
           <Table>
             <TableHeader>
-              <TableRow className="text-xs">
-                <TableHead className="w-16 pl-4">Proto</TableHead>
-                <TableHead className="w-14">Type</TableHead>
+              <TableRow style={{ borderBottomColor: "rgba(255,154,0,0.12)" }}>
+                <TableHead className="w-14 pl-4">Proto</TableHead>
+                <TableHead className="w-12">Type</TableHead>
                 <TableHead>Local</TableHead>
                 <TableHead>Remote</TableHead>
-                <TableHead className="w-24">Status</TableHead>
+                <TableHead className="w-28">Status</TableHead>
                 <TableHead className="w-28">Process</TableHead>
                 <TableHead className="w-20 pr-4">Time</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {filtered.slice(0, 100).map((c) => (
-                <TableRow key={c.id} className="text-xs font-mono group">
-                  <TableCell className="pl-4 uppercase">{c.protocol}</TableCell>
+                <TableRow key={c.id}
+                  className="font-mono group transition-colors"
+                  style={{ borderBottomColor: "rgba(255,154,0,0.06)" }}>
+                  <TableCell className="pl-4 text-[11px] uppercase tracking-wider"
+                    style={{ color: "hsl(38 70% 55%)" }}>{c.protocol}</TableCell>
                   <TableCell>
-                    <Badge variant="outline" className={`text-[10px] px-1.5 py-0 ${c.family === 'ipv6' ? 'border-violet-500/30 text-violet-400' : 'border-sky-500/30 text-sky-400'}`}>
-                      {c.family === 'ipv6' ? 'v6' : 'v4'}
-                    </Badge>
+                    <span className="border text-[9px] px-1 py-0.5 font-mono tracking-widest"
+                      style={{ ...familyStyle(c.family), borderRadius: "2px" }}>
+                      {c.family === "ipv6" ? "v6" : "v4"}
+                    </span>
                   </TableCell>
-                  <TableCell className="tabular-nums">{c.localAddr}:{c.localPort}</TableCell>
-                  <TableCell className="tabular-nums">{c.remoteAddr}:{c.remotePort}</TableCell>
+                  <TableCell className="text-[11px] tabular-nums" style={{ color: "hsl(38 50% 50%)" }}>
+                    {c.localAddr}:{c.localPort}
+                  </TableCell>
+                  <TableCell className="text-[11px] tabular-nums" style={{ color: "hsl(38 75% 65%)" }}>
+                    {c.remoteAddr}:{c.remotePort}
+                  </TableCell>
                   <TableCell>
-                    <Badge variant="outline" className={`text-[10px] px-1.5 py-0 ${statusColor(c.status)}`}>
+                    <span className="border text-[9px] px-1.5 py-0.5 font-mono tracking-widest"
+                      style={{ ...statusStyle(c.status), borderRadius: "2px" }}>
                       {c.status}
-                    </Badge>
+                    </span>
                   </TableCell>
-                  <TableCell className="text-muted-foreground">{c.process || "—"}</TableCell>
-                  <TableCell className="text-muted-foreground pr-4 tabular-nums">{formatTimestamp(c.timestamp)}</TableCell>
+                  <TableCell className="text-[11px]" style={{ color: "hsl(38 40% 45%)" }}>
+                    {c.process || "—"}
+                  </TableCell>
+                  <TableCell className="text-[11px] pr-4 tabular-nums" style={{ color: "hsl(38 30% 40%)" }}>
+                    {formatTimestamp(c.timestamp)}
+                  </TableCell>
                 </TableRow>
               ))}
               {filtered.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
-                    No connections match filters
+                  <TableCell colSpan={7} className="text-center py-10 font-mono text-[11px] tracking-widest uppercase"
+                    style={{ color: "hsl(38 30% 35%)" }}>
+                    // No connections match filters
                   </TableCell>
                 </TableRow>
               )}
             </TableBody>
           </Table>
         </ScrollArea>
-        <div className="px-4 py-2 border-t text-xs text-muted-foreground font-mono tabular-nums">
-          {filtered.length} connection{filtered.length !== 1 ? 's' : ''} shown
+        <div className="px-4 py-2 border-t flex items-center justify-between"
+          style={{ borderTopColor: "rgba(255,154,0,0.1)" }}>
+          <span className="text-[10px] font-mono tracking-widest uppercase" style={{ color: "hsl(38 35% 40%)" }}>
+            {filtered.length} connection{filtered.length !== 1 ? "s" : ""} monitored
+          </span>
+          <div className="flex gap-1">
+            {["ESTABLISHED","LISTEN","TIME_WAIT"].map(s => {
+              const count = filtered.filter(c => c.status === s).length;
+              if (!count) return null;
+              return (
+                <span key={s} className="border text-[9px] px-1.5 py-0.5 font-mono"
+                  style={{ ...statusStyle(s), borderRadius: "2px" }}>
+                  {count} {s.replace("_"," ")}
+                </span>
+              );
+            })}
+          </div>
         </div>
       </CardContent>
     </Card>

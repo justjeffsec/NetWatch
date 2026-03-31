@@ -31,12 +31,25 @@ export default function App() {
                 <AppRouter />
               </Router>
             </main>
-            <footer className="border-t border-border px-4 py-2 flex items-center justify-between">
+            {/* Cyberpunk footer */}
+            <footer className="border-t border-border/60 px-4 py-1.5 flex items-center justify-between"
+              style={{ background: "hsl(26 95% 2.5%)", boxShadow: "0 -1px 12px rgba(255,154,0,0.08)" }}>
               <div className="flex items-center gap-2">
                 <NetwatchLogo />
-                <span className="text-xs font-medium tracking-tight">NetWatch</span>
+                <span className="font-mono text-[11px] tracking-widest uppercase"
+                  style={{ color: "hsl(38 80% 50%)", textShadow: "0 0 8px rgba(255,154,0,0.5)" }}>
+                  NetWatch
+                </span>
+                <span className="text-[10px] font-mono opacity-40 tracking-wider">v1.0</span>
+                <span className="text-[10px] font-mono animate-blink ml-1"
+                  style={{ color: "hsl(38 100% 52%)" }}>█</span>
               </div>
-              <PerplexityAttribution />
+              <div className="flex items-center gap-4">
+                <span className="text-[10px] font-mono opacity-30 tracking-widest uppercase">
+                  SYS::ACTIVE
+                </span>
+                <PerplexityAttribution />
+              </div>
             </footer>
           </div>
           <Toaster />
@@ -49,8 +62,7 @@ export default function App() {
 function NetwatchLogo() {
   return (
     <svg
-      width="20"
-      height="20"
+      width="18" height="18"
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
@@ -58,9 +70,8 @@ function NetwatchLogo() {
       strokeLinecap="round"
       strokeLinejoin="round"
       aria-label="NetWatch logo"
-      className="text-primary"
+      style={{ color: "hsl(38 100% 52%)", filter: "drop-shadow(0 0 4px rgba(255,154,0,0.7))" }}
     >
-      {/* Network node pattern */}
       <circle cx="12" cy="5" r="2" />
       <circle cx="5" cy="19" r="2" />
       <circle cx="19" cy="19" r="2" />

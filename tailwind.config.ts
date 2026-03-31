@@ -96,10 +96,32 @@ export default {
           from: { height: "var(--radix-accordion-content-height)" },
           to: { height: "0" },
         },
+        "glitch": {
+          "0%,85%,100%": { transform: "translate(0,0) skew(0deg)" },
+          "86%": { transform: "translate(-3px,1px) skew(-0.5deg)" },
+          "87%": { transform: "translate(3px,-1px) skew(0.5deg)" },
+          "89%": { transform: "translate(0,0) skew(0deg)" },
+        },
+        "amber-pulse": {
+          "0%,100%": { boxShadow: "0 0 4px rgba(255,154,0,0.3),0 0 8px rgba(255,154,0,0.1)" },
+          "50%": { boxShadow: "0 0 12px rgba(255,154,0,0.6),0 0 24px rgba(255,154,0,0.2)" },
+        },
+        "red-pulse": {
+          "0%,100%": { boxShadow: "0 0 4px rgba(255,40,40,0.4),0 0 8px rgba(255,40,40,0.15)" },
+          "50%": { boxShadow: "0 0 14px rgba(255,40,40,0.8),0 0 28px rgba(255,40,40,0.3)" },
+        },
+        "blink-cursor": {
+          "0%,100%": { opacity: "1" },
+          "50%": { opacity: "0" },
+        },
       },
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
         "accordion-up": "accordion-up 0.2s ease-out",
+        "glitch": "glitch 6s infinite",
+        "amber-pulse": "amber-pulse 2s ease-in-out infinite",
+        "red-pulse": "red-pulse 1.5s ease-in-out infinite",
+        "blink-cursor": "blink-cursor 1s step-end infinite",
       },
     },
   },
