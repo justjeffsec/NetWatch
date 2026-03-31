@@ -6,15 +6,22 @@ import { insertAlertThresholdSchema } from "@shared/schema";
 import { analyzeConnections, analyzeBandwidth } from "./security-engine";
 import { recordFlows } from "./flow-analyzer";
 
-/** Filter out loopback, local, and Docker-internal IPs at the API boundary */
+/** Filter out loopback, private, and Docker-internal IPs at the API boundary */
 function isLocalIp(ip: string): boolean {
   if (!ip || ip === "") return true;
   // Loopback
   if (ip === "0.0.0.0" || ip === "::" || ip === "::1") return true;
   if (ip.startsWith("127.")) return true;
   if (ip.startsWith("::ffff:127.")) return true;
-  // Docker bridge networks (172.17-31.x.x)
-  if (/^172\.(1[7-9]|2\d|3[01])\./.test(ip)) return true;
+  // RFC 1918 private ranges
+  if (ip.startsWith("10.")) return true;
+  if (ip.startsWith("192.168.")) return true;
+  if (/^172\.(1[6-9]|2\d|3[01])\./.test(ip)) return true;
+  // Link-local
+  if (ip.startsWith("169.254.")) return true;
+  // IPv6 link-local / unique local
+  if (ip.toLowerCase().startsWith("fe80:")) return true;
+  if (/^f[cd]/i.test(ip)) return true;
   return false;
 }
 

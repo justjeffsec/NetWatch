@@ -321,22 +321,34 @@ _SKIP_IPS = {
 }
 
 def _is_loopback_or_local(ip: str) -> bool:
-    """Return True for loopback, Docker-internal, and link-local IPs."""
+    """Return True for loopback, private (RFC 1918), and link-local IPs."""
     if ip in _SKIP_IPS:
         return True
+    # IPv4 loopback
     if ip.startswith("127."):
         return True
-    # IPv6 loopback variants
     if ip.startswith("::ffff:127."):
         return True
-    # Docker bridge networks (172.17.0.0 - 172.31.255.255)
+    # RFC 1918 private ranges
+    if ip.startswith("10."):
+        return True
+    if ip.startswith("192.168."):
+        return True
     if ip.startswith("172."):
         try:
             second = int(ip.split(".")[1])
-            if 17 <= second <= 31:
+            if 16 <= second <= 31:
                 return True
         except (ValueError, IndexError):
             pass
+    # Link-local
+    if ip.startswith("169.254."):
+        return True
+    # IPv6 link-local / unique local
+    if ip.lower().startswith("fe80:"):
+        return True
+    if ip[:2].lower() in ("fc", "fd"):
+        return True
     return False
 
 
