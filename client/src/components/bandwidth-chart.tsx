@@ -6,11 +6,11 @@ import {
 import { formatBytes, formatTimestamp } from "@/lib/format";
 import type { BandwidthSnapshot } from "@shared/schema";
 
-// Cyberpunk palette
-const C_AMBER      = "hsl(38, 100%, 52%)";
-const C_ORANGE     = "hsl(20, 100%, 55%)";
-const C_TEAL       = "hsl(185, 85%, 42%)";
-const C_TEAL_LIGHT = "hsl(185, 70%, 55%)";
+// Terminal green palette
+const C_AMBER      = "hsl(128, 100%, 45%)";
+const C_ORANGE     = "hsl(90, 100%, 48%)";
+const C_TEAL       = "hsl(150, 80%, 40%)";
+const C_TEAL_LIGHT = "hsl(150, 70%, 52%)";
 
 interface Props { data: BandwidthSnapshot[]; }
 
@@ -33,9 +33,9 @@ const CustomTooltip = ({ active, payload, label }: any) => {
   if (!active || !payload) return null;
   return (
     <div className="border font-mono text-xs shadow-lg px-3 py-2"
-      style={{ background: "hsl(26 90% 4%)", borderColor: "rgba(255,154,0,0.3)", borderRadius: "2px",
-               boxShadow: "0 0 12px rgba(255,154,0,0.2)" }}>
-      <p className="text-[10px] tracking-wider uppercase mb-1.5" style={{ color: "hsl(38 50% 45%)" }}>
+      style={{ background: "hsl(128 90% 2%)", borderColor: "rgba(0,230,65,0.3)", borderRadius: "2px",
+               boxShadow: "0 0 12px rgba(0,230,65,0.2)" }}>
+      <p className="text-[10px] tracking-wider uppercase mb-1.5" style={{ color: "hsl(128 50% 40%)" }}>
         {formatTimestamp(label)}
       </p>
       {payload.map((p: any) => (
@@ -70,14 +70,14 @@ function ChartView({ data, filter }: { data: BandwidthSnapshot[]; filter?: strin
             <stop offset="95%" stopColor={C_TEAL_LIGHT} stopOpacity={0} />
           </linearGradient>
         </defs>
-        <CartesianGrid strokeDasharray="2 4" stroke="rgba(255,154,0,0.07)" />
+        <CartesianGrid strokeDasharray="2 4" stroke="rgba(0,230,65,0.07)" />
         <XAxis dataKey="timestamp" tickFormatter={formatTimestamp}
-          stroke="rgba(255,154,0,0.2)"
-          tick={{ fontSize: 10, fontFamily: "'Share Tech Mono',monospace", fill: "hsl(38 40% 40%)" }}
+          stroke="rgba(0,230,65,0.2)"
+          tick={{ fontSize: 10, fontFamily: "'Share Tech Mono',monospace", fill: "hsl(128 40% 36%)" }}
           interval="preserveStartEnd" />
         <YAxis tickFormatter={(v) => formatBytes(v)}
-          stroke="rgba(255,154,0,0.2)"
-          tick={{ fontSize: 10, fontFamily: "'Share Tech Mono',monospace", fill: "hsl(38 40% 40%)" }}
+          stroke="rgba(0,230,65,0.2)"
+          tick={{ fontSize: 10, fontFamily: "'Share Tech Mono',monospace", fill: "hsl(128 40% 36%)" }}
           width={62} />
         <Tooltip content={<CustomTooltip />} />
         <Legend wrapperStyle={{ fontSize: 10, fontFamily: "'Share Tech Mono',monospace" }} />
@@ -103,7 +103,7 @@ export function BandwidthChart({ data }: Props) {
     <Card className="border-card-border">
       <CardHeader className="pb-2 pt-3 px-4">
         <div className="flex items-center gap-2">
-          <div className="w-1 h-4 rounded-sm" style={{ background: "hsl(38 100% 52%)", boxShadow: "0 0 6px rgba(255,154,0,0.6)" }} />
+          <div className="w-1 h-4 rounded-sm" style={{ background: "hsl(128 100% 45%)", boxShadow: "0 0 6px rgba(0,230,65,0.6)" }} />
           <CardTitle className="text-[11px] font-mono tracking-widest uppercase opacity-80">
             Bandwidth Usage
           </CardTitle>

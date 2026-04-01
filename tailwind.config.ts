@@ -103,8 +103,8 @@ export default {
           "89%": { transform: "translate(0,0) skew(0deg)" },
         },
         "amber-pulse": {
-          "0%,100%": { boxShadow: "0 0 4px rgba(255,154,0,0.3),0 0 8px rgba(255,154,0,0.1)" },
-          "50%": { boxShadow: "0 0 12px rgba(255,154,0,0.6),0 0 24px rgba(255,154,0,0.2)" },
+          "0%,100%": { boxShadow: "0 0 4px rgba(0,230,65,0.3),0 0 8px rgba(0,230,65,0.1)" },
+          "50%": { boxShadow: "0 0 12px rgba(0,230,65,0.6),0 0 24px rgba(0,230,65,0.2)" },
         },
         "red-pulse": {
           "0%,100%": { boxShadow: "0 0 4px rgba(255,40,40,0.4),0 0 8px rgba(255,40,40,0.15)" },

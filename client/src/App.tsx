@@ -32,16 +32,16 @@ export default function App() {
             </main>
             {/* Cyberpunk footer */}
             <footer className="border-t border-border/60 px-4 py-1.5 flex items-center justify-between"
-              style={{ background: "hsl(26 95% 2.5%)", boxShadow: "0 -1px 12px rgba(255,154,0,0.08)" }}>
+              style={{ background: "hsl(128 95% 2%)", boxShadow: "0 -1px 12px rgba(0,230,65,0.08)" }}>
               <div className="flex items-center gap-2">
                 <NetwatchLogo />
                 <span className="font-mono text-[11px] tracking-widest uppercase"
-                  style={{ color: "hsl(38 80% 50%)", textShadow: "0 0 8px rgba(255,154,0,0.5)" }}>
+                  style={{ color: "hsl(128 80% 50%)", textShadow: "0 0 8px rgba(0,230,65,0.5)" }}>
                   NetWatch
                 </span>
                 <span className="text-[10px] font-mono opacity-40 tracking-wider">v1.0</span>
                 <span className="text-[10px] font-mono animate-blink ml-1"
-                  style={{ color: "hsl(38 100% 52%)" }}>█</span>
+                  style={{ color: "hsl(128 100% 45%)" }}>█</span>
               </div>
               <div className="flex items-center gap-4">
                 <span className="text-[10px] font-mono opacity-30 tracking-widest uppercase">
@@ -68,7 +68,7 @@ function NetwatchLogo() {
       strokeLinecap="round"
       strokeLinejoin="round"
       aria-label="NetWatch logo"
-      style={{ color: "hsl(38 100% 52%)", filter: "drop-shadow(0 0 4px rgba(255,154,0,0.7))" }}
+      style={{ color: "hsl(128 100% 45%)", filter: "drop-shadow(0 0 4px rgba(0,230,65,0.7))" }}
     >
       <circle cx="12" cy="5" r="2" />
       <circle cx="5" cy="19" r="2" />
