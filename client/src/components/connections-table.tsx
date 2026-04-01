@@ -32,24 +32,24 @@ export function ConnectionsTable({ connections }: Props) {
 
   const statusStyle = (s: string) => {
     switch (s) {
-      case "ESTABLISHED": return { borderColor: "rgba(0,210,220,0.35)", background: "rgba(0,210,220,0.08)", color: "hsl(185 85% 55%)" };
-      case "TIME_WAIT":   return { borderColor: "rgba(255,154,0,0.35)", background: "rgba(255,154,0,0.08)", color: "hsl(38 100% 60%)" };
+      case "ESTABLISHED": return { borderColor: "rgba(0,230,65,0.35)", background: "rgba(0,230,65,0.08)", color: "hsl(128 100% 52%)" };
+      case "TIME_WAIT":   return { borderColor: "rgba(0,200,100,0.35)", background: "rgba(0,200,100,0.08)", color: "hsl(150 80% 52%)" };
       case "CLOSE_WAIT":  return { borderColor: "rgba(255,60,60,0.35)",  background: "rgba(255,60,60,0.08)",  color: "#ff7070" };
       case "LISTEN":      return { borderColor: "rgba(150,80,230,0.35)", background: "rgba(150,80,230,0.08)", color: "#c090ff" };
-      default:            return { borderColor: "rgba(255,154,0,0.15)", background: "transparent",            color: "hsl(38 35% 45%)" };
+      default:            return { borderColor: "rgba(0,230,65,0.15)", background: "transparent",            color: "hsl(128 35% 40%)" };
     }
   };
 
   const familyStyle = (f: string) => f === "ipv6"
     ? { borderColor: "rgba(150,80,230,0.3)", background: "rgba(150,80,230,0.07)", color: "#c090ff" }
-    : { borderColor: "rgba(0,210,220,0.3)",  background: "rgba(0,210,220,0.07)",  color: "hsl(185 80% 55%)" };
+    : { borderColor: "rgba(0,230,65,0.3)",  background: "rgba(0,230,65,0.07)",  color: "hsl(128 100% 52%)" };
 
   return (
     <Card className="border-card-border">
       <CardHeader className="pb-2 pt-3 px-4">
         <div className="flex items-center justify-between gap-3 flex-wrap">
           <div className="flex items-center gap-2">
-            <div className="w-1 h-4 rounded-sm" style={{ background: "hsl(185 85% 40%)", boxShadow: "0 0 6px rgba(0,210,220,0.5)" }} />
+            <div className="w-1 h-4 rounded-sm" style={{ background: "hsl(128 100% 45%)", boxShadow: "0 0 6px rgba(0,210,220,0.5)" }} />
             <CardTitle className="text-[11px] font-mono tracking-widest uppercase opacity-80">
               Connections
             </CardTitle>
@@ -91,7 +91,7 @@ export function ConnectionsTable({ connections }: Props) {
         <ScrollArea className="h-[300px]">
           <Table>
             <TableHeader>
-              <TableRow style={{ borderBottomColor: "rgba(255,154,0,0.12)" }}>
+              <TableRow style={{ borderBottomColor: "rgba(0,230,65,0.12)" }}>
                 <TableHead className="w-14 pl-4">Proto</TableHead>
                 <TableHead className="w-12">Type</TableHead>
                 <TableHead>Local</TableHead>
@@ -105,19 +105,19 @@ export function ConnectionsTable({ connections }: Props) {
               {filtered.slice(0, 100).map((c) => (
                 <TableRow key={c.id}
                   className="font-mono group transition-colors"
-                  style={{ borderBottomColor: "rgba(255,154,0,0.06)" }}>
+                  style={{ borderBottomColor: "rgba(0,230,65,0.06)" }}>
                   <TableCell className="pl-4 text-[11px] uppercase tracking-wider"
-                    style={{ color: "hsl(38 70% 55%)" }}>{c.protocol}</TableCell>
+                    style={{ color: "hsl(128 80% 52%)" }}>{c.protocol}</TableCell>
                   <TableCell>
                     <span className="border text-[9px] px-1 py-0.5 font-mono tracking-widest"
                       style={{ ...familyStyle(c.family), borderRadius: "2px" }}>
                       {c.family === "ipv6" ? "v6" : "v4"}
                     </span>
                   </TableCell>
-                  <TableCell className="text-[11px] tabular-nums" style={{ color: "hsl(38 50% 50%)" }}>
+                  <TableCell className="text-[11px] tabular-nums" style={{ color: "hsl(128 50% 45%)" }}>
                     {c.localAddr}:{c.localPort}
                   </TableCell>
-                  <TableCell className="text-[11px] tabular-nums" style={{ color: "hsl(38 75% 65%)" }}>
+                  <TableCell className="text-[11px] tabular-nums" style={{ color: "hsl(128 80% 62%)" }}>
                     {c.remoteAddr}:{c.remotePort}
                   </TableCell>
                   <TableCell>
@@ -126,10 +126,10 @@ export function ConnectionsTable({ connections }: Props) {
                       {c.status}
                     </span>
                   </TableCell>
-                  <TableCell className="text-[11px]" style={{ color: "hsl(38 40% 45%)" }}>
+                  <TableCell className="text-[11px]" style={{ color: "hsl(128 40% 40%)" }}>
                     {c.process || "—"}
                   </TableCell>
-                  <TableCell className="text-[11px] pr-4 tabular-nums" style={{ color: "hsl(38 30% 40%)" }}>
+                  <TableCell className="text-[11px] pr-4 tabular-nums" style={{ color: "hsl(128 30% 36%)" }}>
                     {formatTimestamp(c.timestamp)}
                   </TableCell>
                 </TableRow>
@@ -137,7 +137,7 @@ export function ConnectionsTable({ connections }: Props) {
               {filtered.length === 0 && (
                 <TableRow>
                   <TableCell colSpan={7} className="text-center py-10 font-mono text-[11px] tracking-widest uppercase"
-                    style={{ color: "hsl(38 30% 35%)" }}>
+                    style={{ color: "hsl(128 30% 32%)" }}>
                     // No connections match filters
                   </TableCell>
                 </TableRow>
@@ -146,8 +146,8 @@ export function ConnectionsTable({ connections }: Props) {
           </Table>
         </ScrollArea>
         <div className="px-4 py-2 border-t flex items-center justify-between"
-          style={{ borderTopColor: "rgba(255,154,0,0.1)" }}>
-          <span className="text-[10px] font-mono tracking-widest uppercase" style={{ color: "hsl(38 35% 40%)" }}>
+          style={{ borderTopColor: "rgba(0,230,65,0.1)" }}>
+          <span className="text-[10px] font-mono tracking-widest uppercase" style={{ color: "hsl(128 35% 36%)" }}>
             {filtered.length} connection{filtered.length !== 1 ? "s" : ""} monitored
           </span>
           <div className="flex gap-1">

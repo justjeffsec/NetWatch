@@ -79,10 +79,10 @@ export default function Dashboard() {
   const activeAlerts = alerts.filter(a => !a.dismissed);
 
   return (
-    <div className="h-full overflow-y-auto cyber-grid" style={{ background: "hsl(26 95% 3%)" }}>
+    <div className="h-full overflow-y-auto cyber-grid" style={{ background: "hsl(128 95% 2%)" }}>
       {/* ── TOP NAV BAR ── */}
       <div className="sticky top-0 z-50 border-b border-border/60"
-        style={{ background: "hsl(26 95% 2.5%)", boxShadow: "0 1px 16px rgba(255,154,0,0.1)" }}>
+        style={{ background: "hsl(128 95% 2%)", boxShadow: "0 1px 16px rgba(0,230,65,0.1)" }}>
         <div className="flex items-center justify-between px-4 py-2">
 
           {/* Left: logo + title */}
@@ -90,7 +90,7 @@ export default function Dashboard() {
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
               strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"
               className="animate-glitch"
-              style={{ color: "hsl(38 100% 52%)", filter: "drop-shadow(0 0 5px rgba(255,154,0,0.8))" }}>
+              style={{ color: "hsl(128 100% 45%)", filter: "drop-shadow(0 0 5px rgba(0,230,65,0.8))" }}>
               <circle cx="12" cy="5" r="2" /><circle cx="5" cy="19" r="2" /><circle cx="19" cy="19" r="2" />
               <circle cx="12" cy="12" r="1.5" fill="currentColor" />
               <line x1="12" y1="7" x2="12" y2="10.5" />
@@ -99,7 +99,7 @@ export default function Dashboard() {
             </svg>
             <div className="flex flex-col leading-none">
               <span className="text-[13px] font-mono font-bold tracking-widest uppercase animate-glitch-text"
-                style={{ color: "hsl(38 100% 60%)", textShadow: "0 0 10px rgba(255,154,0,0.6)", fontFamily: "'Orbitron', monospace" }}>
+                style={{ color: "hsl(128 100% 55%)", textShadow: "0 0 10px rgba(0,230,65,0.6)", fontFamily: "'Orbitron', monospace" }}>
                 NetWatch
               </span>
               <span className="text-[9px] font-mono tracking-widest opacity-50 uppercase">
@@ -134,7 +134,7 @@ export default function Dashboard() {
           <div className="flex items-center gap-3">
             <Button variant="ghost" size="sm"
               className="h-7 px-3 font-mono text-[11px] tracking-widest uppercase border border-transparent hover:border-primary/30"
-              style={{ color: "hsl(38 70% 55%)" }}
+              style={{ color: "hsl(128 70% 52%)" }}
               onClick={() => navigate("/traffic")}>
               <BarChart3 className="w-3.5 h-3.5 mr-1.5" />
               Traffic
@@ -143,7 +143,7 @@ export default function Dashboard() {
             <div className="h-4 w-px bg-border/60" />
 
             <span className="text-[11px] font-mono tabular-nums glow-amber"
-              style={{ color: "hsl(38 100% 60%)", minWidth: "80px", textAlign: "right" }}>
+              style={{ color: "hsl(128 100% 55%)", minWidth: "80px", textAlign: "right" }}>
               {clock}
             </span>
           </div>
