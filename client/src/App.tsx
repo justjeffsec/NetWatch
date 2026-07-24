@@ -6,6 +6,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import Dashboard from "@/pages/dashboard";
 import TrafficAnalysis from "@/pages/traffic";
+import Readme from "@/pages/readme";
 import NotFound from "@/pages/not-found";
 import { ThemeProvider } from "@/lib/theme";
 
@@ -14,6 +15,7 @@ function AppRouter() {
     <Switch>
       <Route path="/" component={Dashboard} />
       <Route path="/traffic" component={TrafficAnalysis} />
+      <Route path="/readme" component={Readme} />
       <Route component={NotFound} />
     </Switch>
   );

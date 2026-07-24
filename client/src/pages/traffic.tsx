@@ -3,7 +3,7 @@ import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, BookOpen } from "lucide-react";
 import { useLocation } from "wouter";
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
@@ -86,6 +86,12 @@ export default function TrafficAnalysis() {
               style={{ color:"hsl(128 60% 48%)" }}
               onClick={() => navigate("/")}>
               <ArrowLeft className="w-3.5 h-3.5 mr-1.5" /> Dashboard
+            </Button>
+            <Button variant="ghost" size="sm"
+              className="h-7 px-2 font-mono text-[11px] tracking-widest uppercase border border-transparent hover:border-primary/30"
+              style={{ color:"hsl(128 60% 48%)" }}
+              onClick={() => navigate("/readme")}>
+              <BookOpen className="w-3.5 h-3.5 mr-1.5" /> Manual
             </Button>
             <div className="h-4 w-px bg-border/60" />
             <span className="text-[13px] font-mono font-bold tracking-widest uppercase"

@@ -13,7 +13,7 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useTheme } from "@/lib/theme";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Wifi, WifiOff, BarChart3, Radio } from "lucide-react";
+import { Wifi, WifiOff, BarChart3, BookOpen, Radio } from "lucide-react";
 import { useLocation } from "wouter";
 import type { BandwidthSnapshot, Connection, Alert } from "@shared/schema";
 
@@ -138,6 +138,14 @@ export default function Dashboard() {
               onClick={() => navigate("/traffic")}>
               <BarChart3 className="w-3.5 h-3.5 mr-1.5" />
               Traffic
+            </Button>
+
+            <Button variant="ghost" size="sm"
+              className="h-7 px-3 font-mono text-[11px] tracking-widest uppercase border border-transparent hover:border-primary/30"
+              style={{ color: "hsl(128 70% 52%)" }}
+              onClick={() => navigate("/readme")}>
+              <BookOpen className="w-3.5 h-3.5 mr-1.5" />
+              Manual
             </Button>
 
             <div className="h-4 w-px bg-border/60" />
